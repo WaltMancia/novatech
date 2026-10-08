@@ -1,0 +1,48 @@
+# Redes segmentadas (Capa 4: red interna): la BD solo es alcanzable desde la API.
+services:
+  web:
+    build: { context: ., dockerfile: docker/nginx/Dockerfile }
+    ports: ["8080:8080"]
+    depends_on: [app]
+    networks: [edge]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+  app:
+    build: { context: ., dockerfile: docker/php/Dockerfile, target: app }
+    env_file: .env
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [edge, data]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: ${DB_NAME:?definir DB_NAME}
+      MARIADB_USER: ${DB_USER:?definir DB_USER}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?definir DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?definir DB_ROOT_PASSWORD}
+    volumes: [dbdata:/var/lib/mysql]
+    networks: [data]            # sin puertos publicados al host
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+networks:
+  edge: {}
+  data: { internal: true }      # sin salida a Internet
+
+volumes:
+  dbdata: {}
