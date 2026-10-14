@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace NovaTech\Core;
 
-/** Acceso tipado a variables de entorno. */
 final class Env
 {
     public static function get(string $key, string $default = ''): string

@@ -7,7 +7,6 @@ use ArrayObject;
 use JsonException;
 use NovaTech\Core\Exceptions\HttpException;
 
-/** Petición HTTP inmutable. */
 final class Request
 {
     /** @var array<string, string> */

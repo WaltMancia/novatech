@@ -6,7 +6,6 @@ namespace NovaTech\Core;
 use Closure;
 use NovaTech\Core\Exceptions\HttpException;
 
-/** Enrutador con grupos (prefijo + middleware) y parámetros tipados: /orders/{id:\d+}. */
 final class Router
 {
     /** @var list<array{method: string, pattern: string, regex: string, handler: array|Closure, middleware: array}> */

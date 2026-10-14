@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace NovaTech\Core;
 
-/** Respuesta HTTP inmutable. */
 final class Response
 {
     /** @param array<string, string> $headers */
