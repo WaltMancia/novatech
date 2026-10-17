@@ -31,6 +31,7 @@ final class RequestContext implements Middleware
             'route' => $request->context['route'] ?? null,
             'status' => $response->status,
             'duration_ms' => (int) round((microtime(true) - $start) * 1000),
+            'user_id' => $request->context['user_id'] ?? null,
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
