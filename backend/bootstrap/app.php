@@ -5,7 +5,10 @@ use NovaTech\Core\{App, Config, Container, Database, Logger, Router};
 use NovaTech\Core\Contracts\{RateLimitStore, Session};
 use NovaTech\Core\Security\CsrfTokenManager;
 use NovaTech\Core\Support\{FileRateLimitStore, NativeSession};
-use NovaTech\Http\Middleware\{HandleErrors, RateLimit, RequestContext, SecurityHeaders, VerifyCsrf};
+use NovaTech\Domain\Role;
+use NovaTech\Http\Middleware\{HandleErrors, RateLimit, RequestContext, RequireRole, SecurityHeaders, VerifyCsrf};
+use NovaTech\Repositories\{DatabaseAuditLog, PdoUserRepository, UserRepository};
+use NovaTech\Services\AuditLog;
 
 /**
  * Fábrica de la aplicación (composition root).
@@ -25,6 +28,9 @@ return static function (array $overrides = [], ?callable $extraRoutes = null): A
     ));
     $c->singleton(RateLimitStore::class, static fn () => new FileRateLimitStore(sys_get_temp_dir() . '/novatech_rl'));
     $c->singleton(CsrfTokenManager::class, static fn (Container $c) => new CsrfTokenManager($c->get(Session::class)));
+
+    $c->singleton(UserRepository::class, static fn (Container $c) => new PdoUserRepository($c->get(Database::class)));
+    $c->singleton(AuditLog::class, static fn (Container $c) => new DatabaseAuditLog($c->get(Database::class), $c->get(Logger::class)));
 
     foreach ($overrides as $id => $object) {
         $c->instance($id, $object);
@@ -46,6 +52,7 @@ return static function (array $overrides = [], ?callable $extraRoutes = null): A
     ];
 
     $aliases = [
+        'role' => static fn (Container $c, array $a) => new RequireRole(Role::from($a[0] ?? 'customer')),
         'throttle' => static fn (Container $c, array $a) => new RateLimit(
             $c->get(RateLimitStore::class), (int) ($a[0] ?? 60), (int) ($a[1] ?? 60)
         ),
