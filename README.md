@@ -15,6 +15,14 @@ open http://localhost:8080  # panel de estado de la Fase 0
 make test                   # pruebas del núcleo (requiere PHP 8.3 local)
 ```
 
+Crear el administrador (PowerShell):
+
+```powershell
+$env:ADMIN_PASSWORD = Read-Host "Contraseña (mínimo 12 caracteres)"
+docker compose run --rm -e ADMIN_PASSWORD app php bin/create-admin.php admin@novatech.local "Admin NovaTech"
+Remove-Item Env:ADMIN_PASSWORD
+```
+
 Desarrollo del frontend con recarga en caliente: `cd frontend && npm install && npm run dev` (puerto 5173, proxy a `/api`).
 
 ## Estructura

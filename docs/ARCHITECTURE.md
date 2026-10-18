@@ -48,7 +48,20 @@ index.php → RequestContext → SecurityHeaders → HandleErrors → throttle(1
 | 6. Física | Delegada al proveedor cloud (documentar certificaciones en el informe) |
 | 7. Políticas | Guardarraíl: `APP_DEBUG=true` imposible en producción; secretos solo por entorno (`.env` fuera del repo) |
 
-## 5. Decisiones (ADR resumidas)
+## 5. Autenticación y autorización (Fase 1)
+
+| Endpoint | Acceso | Límite de tasa |
+|---|---|---|
+| `POST /api/auth/register` | Público | 5 por 10 min por IP |
+| `POST /api/auth/login` | Público | 10 por min por IP |
+| `POST /api/auth/logout` | Sesión | — |
+| `GET /api/auth/me` | Sesión | — |
+
+Controles: Argon2id (19 MiB, 2 iteraciones); bloqueo de cuenta 15 min tras 5 fallos; respuesta idéntica y tiempo equivalente para usuario inexistente, clave errónea y cuenta bloqueada; regeneración del ID de sesión y rotación del token CSRF al autenticar; el usuario se recarga desde la BD en cada petición; el registro rechaza campos no declarados (`role`); toda acción relevante queda en `audit_logs`.
+
+Riesgos aceptados y a documentar en el informe: el registro revela si un correo existe (mitigado con límite de tasa); el bloqueo por cuenta permite a un atacante bloquear a una víctima (mitigado con límite por IP y duración corta).
+
+## 6. Decisiones (ADR resumidas)
 
 1. **PHP puro + Composer solo para autoload.** Cumple "sin frameworks"; Composer no añade código de runtime.
 2. **SPA + API JSON** (en vez de HTML en servidor): permite evaluar OWASP API Top 10 (BOLA/IDOR) y encaja con el ciclo de seguridad de APIs.
@@ -56,12 +69,12 @@ index.php → RequestContext → SecurityHeaders → HandleErrors → throttle(1
 4. **Seguro por defecto, vulnerable por rama.** `main` es la versión endurecida. La versión base para el pentest (Fase 7) será una rama/etiqueta `baseline` creada quitando controles de forma deliberada y documentada, solo para el laboratorio local.
 5. **Dinero en centavos (INT)**, snapshot del precio en `order_items` y stock descontado dentro de una transacción.
 
-## 6. Plan por fases
+## 7. Plan por fases
 
 | Fase | Entrega | Estado |
 |---|---|---|
 | **0** | Estructura, Docker, núcleo, controles transversales, esquema BD, scaffold React, pruebas | ✅ |
-| **1** | Autenticación: registro, login, logout, `/me`; Argon2id; bloqueo por intentos; rotación de sesión y CSRF; roles; middleware `auth` y `role` | ⏳ |
+| **1** | Autenticación: registro, login, logout, `/me`; Argon2id; bloqueo por intentos; rotación de sesión y CSRF; roles; middleware `Authenticate` y `role` | ✅ |
 | **2** | Catálogo (10 productos, seed), carrito, pedidos, pago simulado; autorización por objeto; transacciones | ⏳ |
 | **3** | Panel de administración (CRUD de productos, pedidos), auditoría | ⏳ |
 | **4** | Frontend completo: catálogo, carrito, checkout, cuenta, admin | ⏳ |
