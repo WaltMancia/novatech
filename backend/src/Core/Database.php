@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace NovaTech\Core;
 
+use NovaTech\Core\Contracts\Transactor;
 use PDO;
 use Throwable;
 
@@ -10,7 +11,7 @@ use Throwable;
  * Envoltorio PDO. Regla del proyecto: TODA consulta usa parámetros enlazados;
  * jamás se concatenan datos del usuario en el SQL.
  */
-final class Database
+final class Database implements Transactor
 {
     private ?PDO $pdo = null;
 
@@ -66,11 +67,6 @@ final class Database
         return (int) $this->pdo()->lastInsertId();
     }
 
-    /**
-     * @template T
-     * @param callable(self): T $work
-     * @return T
-     */
     public function transaction(callable $work): mixed
     {
         $pdo = $this->pdo();
