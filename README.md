@@ -11,6 +11,7 @@ Alcance: 10 productos · 2 roles (cliente, administrador) · pagos simulados.
 cp .env.example .env        # cambia las contraseñas
 make up                     # construye y levanta web + app + db
 make migrate                # crea el esquema de base de datos
+docker compose run --rm app php bin/seed.php   # carga los 10 productos
 open http://localhost:8080  # panel de estado de la Fase 0
 make test                   # pruebas del núcleo (requiere PHP 8.3 local)
 ```

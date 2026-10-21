@@ -62,6 +62,27 @@ Controles: Argon2id (19 MiB, 2 iteraciones); bloqueo de cuenta 15 min tras 5 fal
 Riesgos aceptados y a documentar en el informe: el registro revela si un correo existe (mitigado con límite de tasa); el bloqueo por cuenta permite a un atacante bloquear a una víctima (mitigado con límite por IP y duración corta).
 
 ## 6. Decisiones (ADR resumidas)
+## 6. Catálogo, carrito y pedidos (Fase 2)
+
+| Endpoint | Acceso | Notas |
+|---|---|---|
+| `GET /api/products`, `GET /api/products/{id}` | Público | Solo productos activos |
+| `GET/DELETE /api/cart`, `POST /api/cart/items`, `PUT/DELETE /api/cart/items/{productId}` | Sesión | Carrito en la sesión del servidor |
+| `POST /api/orders` | Sesión | 10 por min por IP. Cuerpo: `{ "paymentMethod": "simulated_success" \| "simulated_decline" }` |
+| `GET /api/orders`, `GET /api/orders/{id}` | Sesión | Solo pedidos propios |
+
+Controles:
+- **Precios solo del servidor.** El carrito guarda `productId` y cantidad; el total se calcula desde la base de datos. Cualquier campo extra (`priceCents`, `totalCents`) se rechaza con 422.
+- **BOLA/IDOR.** `OrderRepository::findForUser` filtra por `id` **y** `user_id` en el SQL; un pedido ajeno devuelve 404 (no 403) para no revelar su existencia.
+- **Integridad de inventario.** El checkout bloquea las filas (`SELECT ... FOR UPDATE`, orden por id), valida stock, crea pedido e ítems y descuenta con `UPDATE ... WHERE stock >= ?` dentro de una transacción. Probado con compradores simultáneos de la última unidad: nunca hay sobreventa.
+- **Snapshot de precio** en `order_items.unit_price_cents`.
+- **Pago simulado fuera de la transacción**, como una pasarela real: si se rechaza, se libera el stock, el pedido queda `failed` y el carrito se conserva (402). Nunca se reciben datos de tarjeta, por lo que PCI DSS queda fuera de alcance.
+- **Límites:** 1 a 10 unidades por producto y nunca más que el stock; el carrito no se hereda entre cuentas.
+- **Auditoría:** `order.created`, `order.paid`, `order.payment_failed`.
+
+Pendiente a documentar como riesgo: no hay clave de idempotencia en `POST /api/orders` (un doble envío concurrente podría crear dos pedidos; el límite de tasa lo mitiga).
+
+## 7. Decisiones (ADR resumidas)
 
 1. **PHP puro + Composer solo para autoload.** Cumple "sin frameworks"; Composer no añade código de runtime.
 2. **SPA + API JSON** (en vez de HTML en servidor): permite evaluar OWASP API Top 10 (BOLA/IDOR) y encaja con el ciclo de seguridad de APIs.
@@ -70,12 +91,14 @@ Riesgos aceptados y a documentar en el informe: el registro revela si un correo 
 5. **Dinero en centavos (INT)**, snapshot del precio en `order_items` y stock descontado dentro de una transacción.
 
 ## 7. Plan por fases
+## 8. Plan por fases
 
 | Fase | Entrega | Estado |
 |---|---|---|
 | **0** | Estructura, Docker, núcleo, controles transversales, esquema BD, scaffold React, pruebas | ✅ |
 | **1** | Autenticación: registro, login, logout, `/me`; Argon2id; bloqueo por intentos; rotación de sesión y CSRF; roles; middleware `Authenticate` y `role` | ✅ |
 | **2** | Catálogo (10 productos, seed), carrito, pedidos, pago simulado; autorización por objeto; transacciones | ⏳ |
+| **2** | Catálogo (10 productos, seed), carrito, pedidos, pago simulado; autorización por objeto; transacciones | ✅ |
 | **3** | Panel de administración (CRUD de productos, pedidos), auditoría | ⏳ |
 | **4** | Frontend completo: catálogo, carrito, checkout, cuenta, admin | ⏳ |
 | **5** | CI/CD: Semgrep, Dependency-Check/`composer audit`, Trivy, Checkov, ZAP baseline; PHPUnit | ⏳ |

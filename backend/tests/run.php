@@ -12,13 +12,14 @@ putenv('APP_URL=http://localhost:8080');
 putenv('LOG_STREAM=/dev/null');
 
 require __DIR__ . '/../bootstrap/autoload.php';
+require __DIR__ . '/Support/Doubles.php';
 
 use NovaTech\Core\{Container, Request, Response, Router, Validator};
-use NovaTech\Core\Contracts\{RateLimitStore, Session};
+use NovaTech\Core\Contracts\{RateLimitStore, Session, Transactor};
 use NovaTech\Core\Exceptions\{HttpException, ValidationException};
 use NovaTech\Core\Support\{ArraySession, FileRateLimitStore};
 use NovaTech\Domain\{DuplicateEmailException, Role, User};
-use NovaTech\Repositories\UserRepository;
+use NovaTech\Repositories\{OrderRepository, ProductRepository, UserRepository};
 use NovaTech\Services\{AuditLog, AuthService, PasswordHasher};
 
 $passed = 0;
@@ -63,85 +64,11 @@ function fails(callable $fn, string $class = Throwable::class): Throwable
 }
 
 
-final class InMemoryUsers implements UserRepository
-{
-    /** @var array<int, User> */
-    public array $users = [];
-    /** @var array<int, int> */
-    public array $failed = [];
-    /** @var array<int, true> */
-    public array $locked = [];
-
-    public function findByEmail(string $email): ?User
-    {
-        foreach ($this->users as $u) {
-            if ($u->email === $email) {
-                return $this->withLock($u);
-            }
-        }
-        return null;
-    }
-
-    public function findById(int $id): ?User
-    {
-        return isset($this->users[$id]) ? $this->withLock($this->users[$id]) : null;
-    }
-
-    public function create(string $email, string $name, string $passwordHash, Role $role): User
-    {
-        if ($this->findByEmail($email) !== null) {
-            throw new DuplicateEmailException();
-        }
-        $id = count($this->users) + 1;
-        return $this->users[$id] = new User($id, $email, $name, $role, $passwordHash);
-    }
-
-    public function recordFailedLogin(int $id, int $maxAttempts, int $lockSeconds): void
-    {
-        $this->failed[$id] = ($this->failed[$id] ?? 0) + 1;
-        if ($this->failed[$id] >= $maxAttempts) {
-            $this->locked[$id] = true;
-            $this->failed[$id] = 0;
-        }
-    }
-
-    public function resetFailedLogins(int $id): void
-    {
-        $this->failed[$id] = 0;
-        unset($this->locked[$id]);
-    }
-
-    public function updatePasswordHash(int $id, string $hash): void
-    {
-        $u = $this->users[$id];
-        $this->users[$id] = new User($u->id, $u->email, $u->name, $u->role, $hash);
-    }
-
-    private function withLock(User $u): User
-    {
-        return new User($u->id, $u->email, $u->name, $u->role, $u->passwordHash, isset($this->locked[$u->id]));
-    }
-}
-
-final class ArrayAudit implements AuditLog
-{
-    /** @var list<array{action: string, userId: ?int, meta: array}> */
-    public array $events = [];
-
-    public function record(string $action, ?int $userId, string $ip, array $metadata = []): void
-    {
-        $this->events[] = ['action' => $action, 'userId' => $userId, 'meta' => $metadata];
-    }
-
-    public function actions(): array
-    {
-        return array_column($this->events, 'action');
-    }
-}
-
 /** Construye una app aislada (sesión y rate limit propios) con rutas de prueba. */
-function makeApp(?ArraySession &$session = null, ?InMemoryUsers &$users = null, ?ArrayAudit &$audit = null): NovaTech\Core\App
+function makeApp(?ArraySession &$session = null, ?InMemoryUsers &$users = null, ?ArrayAudit &$audit = null, ?InMemoryProducts &$products = null, ?InMemoryOrders &$orders = null): NovaTech\Core\App
 {
+    $products = new InMemoryProducts();
+    $orders = new InMemoryOrders($products);
     $session = new ArraySession();
     $users = new InMemoryUsers();
     $audit = new ArrayAudit();
@@ -153,6 +80,9 @@ function makeApp(?ArraySession &$session = null, ?InMemoryUsers &$users = null, 
         RateLimitStore::class => $store,
         UserRepository::class => $users,
         AuditLog::class => $audit,
+        ProductRepository::class => $products,
+        OrderRepository::class => $orders,
+        Transactor::class => new ImmediateTransactor(),
     ], static function (Router $r): void {
         $r->get('/api/admin-only', static fn () => Response::json(['ok' => true]), [NovaTech\Http\Middleware\Authenticate::class, 'role:admin']);
         $r->post('/api/echo', static fn (Request $req) => Response::json(['got' => $req->json()]));
@@ -250,6 +180,16 @@ test('el router distingue 404 y 405 (con cabecera Allow)', function () {
     $r = $app->handle(req('PUT', '/api/health', ['X-CSRF-Token' => $token]));
     same(405, $r->status);
     same('GET', $r->header('Allow'));
+});
+
+test('parámetros con cuantificador entre llaves: {id:\d{1,3}}', function () {
+    $router = new Router();
+    $router->get('/x/{id:\d{1,3}}', static fn () => Response::json([]));
+    same(['pattern' => '/x/{id:\d{1,3}}', 'id' => '12'], (function () use ($router) {
+        $m = $router->dispatch(req('GET', '/x/12'));
+        return ['pattern' => $m['pattern'], 'id' => $m['params']['id']];
+    })());
+    fails(fn () => $router->dispatch(req('GET', '/x/1234')), HttpException::class);
 });
 
 test('parámetros con restricción regex: /items/{id:\d+}', function () {
@@ -490,6 +430,8 @@ test('auditoría registra registro, login y logout', function () {
         check(in_array($a, $audit->actions(), true), "falta {$a}");
     }
 });
+
+require __DIR__ . '/Feature/ShopTest.php';
 
 echo "\n";
 echo $failed === 0 ? "\033[32mTodo en verde: {$passed} pruebas.\033[0m\n" : "\033[31m{$failed} fallaron, {$passed} pasaron.\033[0m\n";

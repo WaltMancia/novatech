@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 use NovaTech\Core\{App, Config, Container, Database, Logger, Router};
-use NovaTech\Core\Contracts\{RateLimitStore, Session};
+use NovaTech\Core\Contracts\{RateLimitStore, Session, Transactor};
 use NovaTech\Core\Security\CsrfTokenManager;
 use NovaTech\Core\Support\{FileRateLimitStore, NativeSession};
 use NovaTech\Domain\Role;
@@ -31,6 +31,11 @@ return static function (array $overrides = [], ?callable $extraRoutes = null): A
 
     $c->singleton(UserRepository::class, static fn (Container $c) => new PdoUserRepository($c->get(Database::class)));
     $c->singleton(AuditLog::class, static fn (Container $c) => new DatabaseAuditLog($c->get(Database::class), $c->get(Logger::class)));
+
+    $c->singleton(Transactor::class, static fn (Container $c) => $c->get(Database::class));
+    $c->singleton(ProductRepository::class, static fn (Container $c) => new PdoProductRepository($c->get(Database::class)));
+    $c->singleton(OrderRepository::class, static fn (Container $c) => new PdoOrderRepository($c->get(Database::class)));
+    $c->singleton(PaymentGateway::class, static fn () => new SimulatedPaymentGateway());
 
     foreach ($overrides as $id => $object) {
         $c->instance($id, $object);
