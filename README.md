@@ -11,8 +11,19 @@ Alcance: 10 productos · 2 roles (cliente, administrador) · pagos simulados.
 cp .env.example .env        # cambia las contraseñas
 make up                     # construye y levanta web + app + db
 make migrate                # crea el esquema de base de datos
+docker compose run --rm app php bin/seed.php   # carga los 10 productos
 open http://localhost:8080  # panel de estado de la Fase 0
 make test                   # pruebas del núcleo (requiere PHP 8.3 local)
+```
+
+Verificación rápida del flujo de compra (con la app en ejecución): `node scripts/smoke.mjs`.
+
+Crear el administrador (PowerShell):
+
+```powershell
+$env:ADMIN_PASSWORD = Read-Host "Contraseña (mínimo 12 caracteres)"
+docker compose run --rm -e ADMIN_PASSWORD app php bin/create-admin.php admin@novatech.local "Admin NovaTech"
+Remove-Item Env:ADMIN_PASSWORD
 ```
 
 Desarrollo del frontend con recarga en caliente: `cd frontend && npm install && npm run dev` (puerto 5173, proxy a `/api`).

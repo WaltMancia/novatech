@@ -6,7 +6,6 @@ namespace NovaTech\Core;
 use Closure;
 use NovaTech\Core\Exceptions\HttpException;
 
-/** Enrutador con grupos (prefijo + middleware) y parámetros tipados: /orders/{id:\d+}. */
 final class Router
 {
     /** @var list<array{method: string, pattern: string, regex: string, handler: array|Closure, middleware: array}> */
@@ -87,10 +86,12 @@ final class Router
 
     private function compile(string $path): string
     {
-        $parts = preg_split('#(\{\w+(?::[^}]+)?\})#', $path, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [];
+        // El patrón de un parámetro admite un nivel de llaves: {id:\d{1,9}}
+        $param = '\{\w+(?::(?:[^{}]|\{[^{}]*\})+)?\}';
+        $parts = preg_split("#({$param})#", $path, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [];
         $regex = '';
         foreach ($parts as $part) {
-            if (preg_match('#^\{(\w+)(?::([^}]+))?\}$#', $part, $m) === 1) {
+            if (preg_match("#^\{(\w+)(?::(.+))?\}$#", $part, $m) === 1) {
                 $regex .= '(?P<' . $m[1] . '>' . ($m[2] ?? '[^/]+') . ')';
             } else {
                 $regex .= preg_quote($part, '#');

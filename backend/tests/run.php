@@ -12,11 +12,15 @@ putenv('APP_URL=http://localhost:8080');
 putenv('LOG_STREAM=/dev/null');
 
 require __DIR__ . '/../bootstrap/autoload.php';
+require __DIR__ . '/Support/Doubles.php';
 
 use NovaTech\Core\{Container, Request, Response, Router, Validator};
-use NovaTech\Core\Contracts\{RateLimitStore, Session};
+use NovaTech\Core\Contracts\{RateLimitStore, Session, Transactor};
 use NovaTech\Core\Exceptions\{HttpException, ValidationException};
 use NovaTech\Core\Support\{ArraySession, FileRateLimitStore};
+use NovaTech\Domain\{DuplicateEmailException, Role, User};
+use NovaTech\Repositories\{OrderRepository, ProductRepository, UserRepository};
+use NovaTech\Services\{AuditLog, AuthService, PasswordHasher};
 
 $passed = 0;
 $failed = 0;
@@ -59,14 +63,28 @@ function fails(callable $fn, string $class = Throwable::class): Throwable
     throw new RuntimeException('Se esperaba una excepción');
 }
 
+
 /** Construye una app aislada (sesión y rate limit propios) con rutas de prueba. */
-function makeApp(?ArraySession &$session = null): NovaTech\Core\App
+function makeApp(?ArraySession &$session = null, ?InMemoryUsers &$users = null, ?ArrayAudit &$audit = null, ?InMemoryProducts &$products = null, ?InMemoryOrders &$orders = null): NovaTech\Core\App
 {
+    $products = new InMemoryProducts();
+    $orders = new InMemoryOrders($products);
     $session = new ArraySession();
+    $users = new InMemoryUsers();
+    $audit = new ArrayAudit();
     $store = new FileRateLimitStore(sys_get_temp_dir() . '/nt_test_' . bin2hex(random_bytes(4)));
     $factory = require __DIR__ . '/../bootstrap/app.php';
 
-    return $factory([Session::class => $session, RateLimitStore::class => $store], static function (Router $r): void {
+    return $factory([
+        Session::class => $session,
+        RateLimitStore::class => $store,
+        UserRepository::class => $users,
+        AuditLog::class => $audit,
+        ProductRepository::class => $products,
+        OrderRepository::class => $orders,
+        Transactor::class => new ImmediateTransactor(),
+    ], static function (Router $r): void {
+        $r->get('/api/admin-only', static fn () => Response::json(['ok' => true]), [NovaTech\Http\Middleware\Authenticate::class, 'role:admin']);
         $r->post('/api/echo', static fn (Request $req) => Response::json(['got' => $req->json()]));
         $r->get('/api/boom', static fn () => throw new RuntimeException('secreto-interno'));
         $r->post('/api/limited', static fn () => Response::json(['ok' => true]), ['throttle:2,60']);
@@ -82,6 +100,20 @@ function req(string $method, string $path, array $headers = [], string $body = '
 function jsonBody(Response $r): array
 {
     return json_decode($r->body, true, 512, JSON_THROW_ON_ERROR);
+}
+
+
+/** Envía un POST JSON con el token CSRF vigente de la sesión. */
+function postJson(NovaTech\Core\App $app, string $path, array $body): Response
+{
+    $token = jsonBody($app->handle(req('GET', '/api/csrf')))['csrfToken'];
+    return $app->handle(req('POST', $path, ['Content-Type' => 'application/json', 'X-CSRF-Token' => $token], json_encode($body)));
+}
+
+const PASS = 'clave-segura-123';
+function register(NovaTech\Core\App $app, string $email = 'ana@example.com'): Response
+{
+    return postJson($app, '/api/auth/register', ['email' => $email, 'name' => 'Ana Pérez', 'password' => PASS]);
 }
 
 echo "\nValidator\n";
@@ -148,6 +180,16 @@ test('el router distingue 404 y 405 (con cabecera Allow)', function () {
     $r = $app->handle(req('PUT', '/api/health', ['X-CSRF-Token' => $token]));
     same(405, $r->status);
     same('GET', $r->header('Allow'));
+});
+
+test('parámetros con cuantificador entre llaves: {id:\d{1,3}}', function () {
+    $router = new Router();
+    $router->get('/x/{id:\d{1,3}}', static fn () => Response::json([]));
+    same(['pattern' => '/x/{id:\d{1,3}}', 'id' => '12'], (function () use ($router) {
+        $m = $router->dispatch(req('GET', '/x/12'));
+        return ['pattern' => $m['pattern'], 'id' => $m['params']['id']];
+    })());
+    fails(fn () => $router->dispatch(req('GET', '/x/1234')), HttpException::class);
 });
 
 test('parámetros con restricción regex: /items/{id:\d+}', function () {
@@ -260,6 +302,136 @@ test('guardarraíl: APP_DEBUG=true en producción aborta el arranque', function 
         putenv('APP_DEBUG=false');
     }
 });
+
+
+echo "\nAutenticación y autorización\n";
+
+test('Argon2id: hash, verificación, rehash y parámetros del hash señuelo', function () {
+    $h = new PasswordHasher();
+    $hash = $h->hash('otra-clave-larga-1');
+    check(str_starts_with($hash, '$argon2id$'));
+    check($h->verify('otra-clave-larga-1', $hash) && !$h->verify('mala', $hash));
+    check(!$h->needsRehash($hash));
+    check(!$h->needsRehash(PasswordHasher::dummyHash()), 'El hash señuelo debe usar los parámetros vigentes');
+    check(password_needs_rehash($hash, PASSWORD_ARGON2ID, ['memory_cost' => 65536, 'time_cost' => 4, 'threads' => 1]));
+});
+
+test('registro: 201, rol customer, sin hash en la respuesta y sesión iniciada', function () {
+    $app = makeApp($session, $users);
+    $r = register($app);
+    same(201, $r->status);
+    $user = jsonBody($r)['user'];
+    same('customer', $user['role']);
+    check(!str_contains($r->body, 'password') && !str_contains($r->body, 'argon2'));
+    same(1, $session->get(AuthService::SESSION_KEY));
+    same(1, $session->regenerations, 'La sesión debe regenerarse');
+    check(str_starts_with($users->users[1]->passwordHash, '$argon2id$'));
+});
+
+test('registro rechaza el campo "role" (anti escalada por mass assignment)', function () {
+    $app = makeApp($s, $users);
+    $r = postJson($app, '/api/auth/register', ['email' => 'x@example.com', 'name' => 'Eve', 'password' => PASS, 'role' => 'admin']);
+    same(422, $r->status);
+    check(isset(jsonBody($r)['error']['fields']['role']));
+    same([], $users->users);
+});
+
+test('registro: contraseña débil o correo duplicado -> 422', function () {
+    $app = makeApp();
+    same(422, postJson($app, '/api/auth/register', ['email' => 'a@example.com', 'name' => 'Ana', 'password' => 'corta'])->status);
+    same(201, register($app, 'dup@example.com')->status);
+    $r = register($app, 'DUP@example.com');
+    same(422, $r->status);
+    check(isset(jsonBody($r)['error']['fields']['email']));
+});
+
+test('login correcto: 200, regenera sesión y rota el token CSRF', function () {
+    $app = makeApp($session);
+    register($app);
+    $session->destroy();
+    $before = $session->regenerations;
+    $oldToken = jsonBody($app->handle(req('GET', '/api/csrf')))['csrfToken'];
+    $r = postJson($app, '/api/auth/login', ['email' => 'ANA@example.com', 'password' => PASS]);
+    same(200, $r->status);
+    same($before + 1, $session->regenerations);
+    check($oldToken !== jsonBody($app->handle(req('GET', '/api/csrf')))['csrfToken'], 'El token CSRF debe rotar');
+});
+
+test('login: usuario inexistente y clave errónea devuelven la misma respuesta', function () {
+    $app = makeApp($s, $u, $audit);
+    register($app);
+    $bad = postJson($app, '/api/auth/login', ['email' => 'ana@example.com', 'password' => 'incorrecta-123']);
+    $none = postJson($app, '/api/auth/login', ['email' => 'nadie@example.com', 'password' => 'incorrecta-123']);
+    same(401, $bad->status);
+    same(401, $none->status);
+    same($bad->body, $none->body);
+    same('invalid_credentials', jsonBody($bad)['error']['code']);
+    check(in_array('auth.login_failed', $audit->actions(), true));
+});
+
+test('bloqueo tras 5 intentos fallidos: ni la clave correcta entra', function () {
+    $app = makeApp($s, $u, $audit);
+    register($app);
+    for ($i = 0; $i < AuthService::MAX_ATTEMPTS; $i++) {
+        same(401, postJson($app, '/api/auth/login', ['email' => 'ana@example.com', 'password' => 'incorrecta-123'])->status);
+    }
+    $r = postJson($app, '/api/auth/login', ['email' => 'ana@example.com', 'password' => PASS]);
+    same(401, $r->status);
+    $reasons = array_column(array_column($audit->events, 'meta'), 'reason');
+    check(in_array('locked', $reasons, true));
+});
+
+test('login rechaza campos extra y cuerpos mal formados', function () {
+    $app = makeApp();
+    same(422, postJson($app, '/api/auth/login', ['email' => 'a@b.com', 'password' => 'x', 'admin' => true])->status);
+    same(422, postJson($app, '/api/auth/login', ['email' => 'a@b.com'])->status);
+});
+
+test('/auth/me: 401 sin sesión, 200 con sesión y 401 tras logout', function () {
+    $app = makeApp();
+    same(401, $app->handle(req('GET', '/api/auth/me'))->status);
+    register($app);
+    $me = $app->handle(req('GET', '/api/auth/me'));
+    same(200, $me->status);
+    same('ana@example.com', jsonBody($me)['user']['email']);
+    same(204, postJson($app, '/api/auth/logout', [])->status);
+    same(401, $app->handle(req('GET', '/api/auth/me'))->status);
+});
+
+test('logout exige CSRF y sesión', function () {
+    $app = makeApp();
+    register($app);
+    same(403, $app->handle(req('POST', '/api/auth/logout'))->status);
+});
+
+test('autorización por rol: customer -> 403, admin -> 200, anónimo -> 401', function () {
+    $app = makeApp($session, $users);
+    same(401, $app->handle(req('GET', '/api/admin-only'))->status);
+    register($app);
+    same(403, $app->handle(req('GET', '/api/admin-only'))->status);
+    $users->users[1] = new User(1, 'ana@example.com', 'Ana', Role::Admin, $users->users[1]->passwordHash);
+    same(200, $app->handle(req('GET', '/api/admin-only'))->status);
+});
+
+test('sesión de un usuario eliminado deja de ser válida', function () {
+    $app = makeApp($session, $users);
+    register($app);
+    $users->users = [];
+    same(401, $app->handle(req('GET', '/api/auth/me'))->status);
+    same(null, $session->get(AuthService::SESSION_KEY));
+});
+
+test('auditoría registra registro, login y logout', function () {
+    $app = makeApp($s, $u, $audit);
+    register($app);
+    postJson($app, '/api/auth/logout', []);
+    postJson($app, '/api/auth/login', ['email' => 'ana@example.com', 'password' => PASS]);
+    foreach (['user.registered', 'auth.logout', 'auth.login_success'] as $a) {
+        check(in_array($a, $audit->actions(), true), "falta {$a}");
+    }
+});
+
+require __DIR__ . '/Feature/ShopTest.php';
 
 echo "\n";
 echo $failed === 0 ? "\033[32mTodo en verde: {$passed} pruebas.\033[0m\n" : "\033[31m{$failed} fallaron, {$passed} pasaron.\033[0m\n";
