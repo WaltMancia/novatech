@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace NovaTech\Core;
 
-/** Configuración inmutable con notación de puntos: Config::get('app.env'). */
 final class Config
 {
     /** @param array<string, mixed> $items */

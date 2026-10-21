@@ -16,8 +16,6 @@ open http://localhost:8080  # panel de estado de la Fase 0
 make test                   # pruebas del núcleo (requiere PHP 8.3 local)
 ```
 
-Verificación rápida del flujo de compra (con la app en ejecución): `node scripts/smoke.mjs`.
-
 Crear el administrador (PowerShell):
 
 ```powershell

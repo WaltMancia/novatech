@@ -12,7 +12,6 @@ final class HealthController
     {
     }
 
-    /** Liveness: el proceso responde. */
     public function live(Request $request): Response
     {
         return Response::json(['status' => 'ok', 'service' => 'novatech-api']);

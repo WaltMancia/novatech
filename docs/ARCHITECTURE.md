@@ -61,6 +61,7 @@ Controles: Argon2id (19 MiB, 2 iteraciones); bloqueo de cuenta 15 min tras 5 fal
 
 Riesgos aceptados y a documentar en el informe: el registro revela si un correo existe (mitigado con límite de tasa); el bloqueo por cuenta permite a un atacante bloquear a una víctima (mitigado con límite por IP y duración corta).
 
+## 6. Decisiones (ADR resumidas)
 ## 6. Catálogo, carrito y pedidos (Fase 2)
 
 | Endpoint | Acceso | Notas |
@@ -89,12 +90,14 @@ Pendiente a documentar como riesgo: no hay clave de idempotencia en `POST /api/o
 4. **Seguro por defecto, vulnerable por rama.** `main` es la versión endurecida. La versión base para el pentest (Fase 7) será una rama/etiqueta `baseline` creada quitando controles de forma deliberada y documentada, solo para el laboratorio local.
 5. **Dinero en centavos (INT)**, snapshot del precio en `order_items` y stock descontado dentro de una transacción.
 
+## 7. Plan por fases
 ## 8. Plan por fases
 
 | Fase | Entrega | Estado |
 |---|---|---|
 | **0** | Estructura, Docker, núcleo, controles transversales, esquema BD, scaffold React, pruebas | ✅ |
 | **1** | Autenticación: registro, login, logout, `/me`; Argon2id; bloqueo por intentos; rotación de sesión y CSRF; roles; middleware `Authenticate` y `role` | ✅ |
+| **2** | Catálogo (10 productos, seed), carrito, pedidos, pago simulado; autorización por objeto; transacciones | ⏳ |
 | **2** | Catálogo (10 productos, seed), carrito, pedidos, pago simulado; autorización por objeto; transacciones | ✅ |
 | **3** | Panel de administración (CRUD de productos, pedidos), auditoría | ⏳ |
 | **4** | Frontend completo: catálogo, carrito, checkout, cuenta, admin | ⏳ |

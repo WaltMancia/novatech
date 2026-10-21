@@ -7,9 +7,8 @@ use NovaTech\Core\Security\CsrfTokenManager;
 use NovaTech\Core\Support\{FileRateLimitStore, NativeSession};
 use NovaTech\Domain\Role;
 use NovaTech\Http\Middleware\{HandleErrors, RateLimit, RequestContext, RequireRole, SecurityHeaders, VerifyCsrf};
-use NovaTech\Repositories\{DatabaseAuditLog, OrderRepository, PdoOrderRepository, PdoProductRepository, PdoUserRepository, ProductRepository, UserRepository};
+use NovaTech\Repositories\{DatabaseAuditLog, PdoUserRepository, UserRepository};
 use NovaTech\Services\AuditLog;
-use NovaTech\Services\Payment\{PaymentGateway, SimulatedPaymentGateway};
 
 /**
  * Fábrica de la aplicación (composition root).
