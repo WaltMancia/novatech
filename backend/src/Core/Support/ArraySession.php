@@ -5,7 +5,6 @@ namespace NovaTech\Core\Support;
 
 use NovaTech\Core\Contracts\Session;
 
-/** Sesión en memoria para pruebas. */
 final class ArraySession implements Session
 {
     /** @var array<string, mixed> */

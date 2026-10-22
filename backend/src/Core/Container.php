@@ -8,7 +8,6 @@ use ReflectionClass;
 use ReflectionNamedType;
 use RuntimeException;
 
-/** Contenedor de inyección de dependencias con autowiring por constructor. */
 final class Container
 {
     /** @var array<string, Closure(Container): object> */
