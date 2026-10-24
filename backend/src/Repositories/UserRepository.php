@@ -20,4 +20,7 @@ interface UserRepository
     public function resetFailedLogins(int $id): void;
 
     public function updatePasswordHash(int $id, string $hash): void;
+
+    /** @return array{items: list<User>, total: int} */
+    public function paginate(int $limit, int $offset): array;
 }

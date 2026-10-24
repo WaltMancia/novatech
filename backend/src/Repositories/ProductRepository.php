@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace NovaTech\Repositories;
 
-use NovaTech\Domain\Product;
+use NovaTech\Domain\{DuplicateSkuException, Product};
 
 interface ProductRepository
 {
@@ -30,4 +30,16 @@ interface ProductRepository
     public function decrementStock(int $id, int $quantity): bool;
 
     public function restoreStock(int $id, int $quantity): void;
+
+    /** Incluye productos inactivos (uso administrativo). */
+    public function findAny(int $id): ?Product;
+
+    /** @return array{items: list<Product>, total: int} */
+    public function paginate(int $limit, int $offset): array;
+
+    /** @throws DuplicateSkuException */
+    public function create(string $sku, string $name, string $description, int $priceCents, int $stock, ?string $imagePath): Product;
+
+    /** @param array<string, scalar|null> $changes claves permitidas: name, description, priceCents, stock, imagePath, active */
+    public function update(int $id, array $changes): void;
 }

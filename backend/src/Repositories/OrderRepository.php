@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace NovaTech\Repositories;
 
-use NovaTech\Domain\Order;
+use NovaTech\Domain\{Order, OrderStatus};
 
 interface OrderRepository
 {
@@ -20,4 +20,12 @@ interface OrderRepository
 
     /** @return list<Order> */
     public function listForUser(int $userId): array;
+
+    public function findAny(int $orderId): ?Order;
+
+    /** @return array{items: list<Order>, total: int} */
+    public function paginate(?OrderStatus $status, int $limit, int $offset): array;
+
+    /** Cambio de estado condicional y atómico: devuelve false si el pedido ya no estaba en $from. */
+    public function transition(int $orderId, OrderStatus $from, OrderStatus $to): bool;
 }
