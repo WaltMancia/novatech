@@ -4,7 +4,9 @@ declare(strict_types=1);
 namespace NovaTech\Repositories;
 
 use NovaTech\Core\Database;
-use NovaTech\Domain\Product;
+use InvalidArgumentException;
+use NovaTech\Domain\{DuplicateSkuException, Product};
+use PDOException;
 
 final class PdoProductRepository implements ProductRepository
 {
@@ -47,6 +49,59 @@ final class PdoProductRepository implements ProductRepository
     public function restoreStock(int $id, int $quantity): void
     {
         $this->db->execute('UPDATE products SET stock = stock + ? WHERE id = ?', [$quantity, $id]);
+    }
+
+    public function findAny(int $id): ?Product
+    {
+        $row = $this->db->fetchOne(self::SELECT . ' WHERE id = ?', [$id]);
+        return $row === null ? null : $this->hydrate($row);
+    }
+
+    public function paginate(int $limit, int $offset): array
+    {
+        $total = (int) ($this->db->fetchOne('SELECT COUNT(*) AS n FROM products')['n'] ?? 0);
+        // $limit y $offset son int tipados: se interpolan como literales.
+        $rows = $this->db->fetchAll(self::SELECT . " ORDER BY id LIMIT {$limit} OFFSET {$offset}");
+        return ['items' => array_map($this->hydrate(...), $rows), 'total' => $total];
+    }
+
+    public function create(string $sku, string $name, string $description, int $priceCents, int $stock, ?string $imagePath): Product
+    {
+        try {
+            $this->db->execute(
+                'INSERT INTO products (sku, name, description, price_cents, stock, image_path) VALUES (?, ?, ?, ?, ?, ?)',
+                [$sku, $name, $description, $priceCents, $stock, $imagePath],
+            );
+        } catch (PDOException $e) {
+            if (($e->errorInfo[1] ?? null) === 1062) {
+                throw new DuplicateSkuException();
+            }
+            throw $e;
+        }
+        return new Product($this->db->lastInsertId(), $sku, $name, $description, $priceCents, $stock, $imagePath, true);
+    }
+
+    public function update(int $id, array $changes): void
+    {
+        // Lista blanca de columnas: los nombres de columna nunca provienen de la entrada del usuario.
+        $columns = [
+            'name' => 'name', 'description' => 'description', 'priceCents' => 'price_cents',
+            'stock' => 'stock', 'imagePath' => 'image_path', 'active' => 'is_active',
+        ];
+        $sets = [];
+        $params = [];
+        foreach ($changes as $field => $value) {
+            if (!isset($columns[$field])) {
+                throw new InvalidArgumentException("Campo no actualizable: {$field}");
+            }
+            $sets[] = $columns[$field] . ' = ?';
+            $params[] = is_bool($value) ? (int) $value : $value;
+        }
+        if ($sets === []) {
+            return;
+        }
+        $params[] = $id;
+        $this->db->execute('UPDATE products SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
     }
 
     /**

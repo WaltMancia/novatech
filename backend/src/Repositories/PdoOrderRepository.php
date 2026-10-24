@@ -3,9 +3,8 @@ declare(strict_types=1);
 
 namespace NovaTech\Repositories;
 
-use DateTimeImmutable;
-use DateTimeZone;
 use NovaTech\Core\Database;
+use NovaTech\Core\Support\Dates;
 use NovaTech\Domain\{Order, OrderItem, OrderStatus};
 
 final class PdoOrderRepository implements OrderRepository
@@ -52,6 +51,30 @@ final class PdoOrderRepository implements OrderRepository
         return $row === null ? null : $this->withItems([$row])[0];
     }
 
+    public function findAny(int $orderId): ?Order
+    {
+        $row = $this->db->fetchOne(self::SELECT . ' WHERE id = ?', [$orderId]);
+        return $row === null ? null : $this->withItems([$row])[0];
+    }
+
+    public function paginate(?OrderStatus $status, int $limit, int $offset): array
+    {
+        $where = $status === null ? '' : ' WHERE status = ?';
+        $params = $status === null ? [] : [$status->value];
+
+        $total = (int) ($this->db->fetchOne("SELECT COUNT(*) AS n FROM orders{$where}", $params)['n'] ?? 0);
+        $rows = $this->db->fetchAll(self::SELECT . "{$where} ORDER BY id DESC LIMIT {$limit} OFFSET {$offset}", $params);
+        return ['items' => $this->withItems($rows), 'total' => $total];
+    }
+
+    public function transition(int $orderId, OrderStatus $from, OrderStatus $to): bool
+    {
+        return $this->db->execute(
+            'UPDATE orders SET status = ? WHERE id = ? AND status = ?',
+            [$to->value, $orderId, $from->value],
+        ) === 1;
+    }
+
     public function listForUser(int $userId): array
     {
         return $this->withItems($this->db->fetchAll(self::SELECT . ' WHERE user_id = ? ORDER BY id DESC LIMIT 50', [$userId]));
@@ -88,7 +111,7 @@ final class PdoOrderRepository implements OrderRepository
             OrderStatus::from((string) $r['status']),
             (int) $r['total_cents'],
             $r['payment_ref'] === null ? null : (string) $r['payment_ref'],
-            (new DateTimeImmutable((string) $r['created_at'], new DateTimeZone('UTC')))->format(DATE_ATOM),
+            Dates::toIso((string) $r['created_at']),
             $items[(int) $r['id']] ?? [],
         ), $rows);
     }

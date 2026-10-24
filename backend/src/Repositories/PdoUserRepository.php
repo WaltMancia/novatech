@@ -66,6 +66,13 @@ final class PdoUserRepository implements UserRepository
         $this->db->execute('UPDATE users SET password_hash = ? WHERE id = ?', [$hash, $id]);
     }
 
+    public function paginate(int $limit, int $offset): array
+    {
+        $total = (int) ($this->db->fetchOne('SELECT COUNT(*) AS n FROM users')['n'] ?? 0);
+        $rows = $this->db->fetchAll(self::SELECT . " ORDER BY id LIMIT {$limit} OFFSET {$offset}");
+        return ['items' => array_map($this->hydrate(...), $rows), 'total' => $total];
+    }
+
     /** @param array<string, mixed> $row */
     private function hydrate(array $row): User
     {
