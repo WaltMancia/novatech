@@ -28,4 +28,9 @@ final readonly class Order
             'items' => array_map(static fn (OrderItem $i) => $i->toPublic(), $this->items),
         ];
     }
+
+    public function toAdmin(): array
+    {
+        return ['userId' => $this->userId, ...$this->toPublic()];
+    }
 }

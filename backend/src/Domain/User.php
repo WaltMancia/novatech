@@ -20,4 +20,9 @@ final readonly class User
     {
         return ['id' => $this->id, 'email' => $this->email, 'name' => $this->name, 'role' => $this->role->value];
     }
+
+    public function toAdmin(): array
+    {
+        return [...$this->toPublic(), 'locked' => $this->locked];
+    }
 }
