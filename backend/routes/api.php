@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 use NovaTech\Core\Router;
 use NovaTech\Http\Controllers\{AuthController, CartController, CsrfController, HealthController, OrderController, ProductController};
+use NovaTech\Http\Controllers\Admin\{AuditAdminController, OrderAdminController, ProductAdminController, UserAdminController};
 use NovaTech\Http\Middleware\Authenticate;
 
 return static function (Router $router): void {
@@ -34,6 +35,21 @@ return static function (Router $router): void {
             $o->get('', [OrderController::class, 'index']);
             $o->get('/{id:\d{1,9}}', [OrderController::class, 'show']);
         });
-        // Fase 3: /admin/*
+
+        // Toda la superficie administrativa exige sesión y rol admin (se evalúan en ese orden).
+        $r->group('/admin', [Authenticate::class, 'role:admin'], static function (Router $a): void {
+            $a->get('/products', [ProductAdminController::class, 'index']);
+            $a->post('/products', [ProductAdminController::class, 'store']);
+            $a->get('/products/{id:\d{1,9}}', [ProductAdminController::class, 'show']);
+            $a->patch('/products/{id:\d{1,9}}', [ProductAdminController::class, 'update']);
+            $a->delete('/products/{id:\d{1,9}}', [ProductAdminController::class, 'destroy']);
+
+            $a->get('/orders', [OrderAdminController::class, 'index']);
+            $a->get('/orders/{id:\d{1,9}}', [OrderAdminController::class, 'show']);
+            $a->post('/orders/{id:\d{1,9}}/cancel', [OrderAdminController::class, 'cancel']);
+
+            $a->get('/users', [UserAdminController::class, 'index']);
+            $a->get('/audit-logs', [AuditAdminController::class, 'index']);
+        });
     });
 };

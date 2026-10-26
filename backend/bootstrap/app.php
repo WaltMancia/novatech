@@ -7,8 +7,9 @@ use NovaTech\Core\Security\CsrfTokenManager;
 use NovaTech\Core\Support\{FileRateLimitStore, NativeSession};
 use NovaTech\Domain\Role;
 use NovaTech\Http\Middleware\{HandleErrors, RateLimit, RequestContext, RequireRole, SecurityHeaders, VerifyCsrf};
-use NovaTech\Repositories\{DatabaseAuditLog, PdoUserRepository, UserRepository};
+use NovaTech\Repositories\{AuditLogReader, DatabaseAuditLog, OrderRepository, PdoAuditLogReader, PdoOrderRepository, PdoProductRepository, PdoUserRepository, ProductRepository, UserRepository};
 use NovaTech\Services\AuditLog;
+use NovaTech\Services\Payment\{PaymentGateway, SimulatedPaymentGateway};
 
 /**
  * Fábrica de la aplicación (composition root).
@@ -36,6 +37,8 @@ return static function (array $overrides = [], ?callable $extraRoutes = null): A
     $c->singleton(ProductRepository::class, static fn (Container $c) => new PdoProductRepository($c->get(Database::class)));
     $c->singleton(OrderRepository::class, static fn (Container $c) => new PdoOrderRepository($c->get(Database::class)));
     $c->singleton(PaymentGateway::class, static fn () => new SimulatedPaymentGateway());
+
+    $c->singleton(AuditLogReader::class, static fn (Container $c) => new PdoAuditLogReader($c->get(Database::class)));
 
     foreach ($overrides as $id => $object) {
         $c->instance($id, $object);
