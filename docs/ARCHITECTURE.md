@@ -61,7 +61,6 @@ Controles: Argon2id (19 MiB, 2 iteraciones); bloqueo de cuenta 15 min tras 5 fal
 
 Riesgos aceptados y a documentar en el informe: el registro revela si un correo existe (mitigado con límite de tasa); el bloqueo por cuenta permite a un atacante bloquear a una víctima (mitigado con límite por IP y duración corta).
 
-## 6. Decisiones (ADR resumidas)
 ## 6. Catálogo, carrito y pedidos (Fase 2)
 
 | Endpoint | Acceso | Notas |
@@ -82,7 +81,28 @@ Controles:
 
 Pendiente a documentar como riesgo: no hay clave de idempotencia en `POST /api/orders` (un doble envío concurrente podría crear dos pedidos; el límite de tasa lo mitiga).
 
-## 7. Decisiones (ADR resumidas)
+## 7. Administración (Fase 3)
+
+Toda la superficie `/api/admin/*` pasa por `Authenticate` y luego `role:admin` (deniega por defecto).
+
+| Endpoint | Función |
+|---|---|
+| `GET/POST /api/admin/products`, `GET/PATCH/DELETE /api/admin/products/{id}` | Catálogo completo (incluye inactivos). `DELETE` es baja lógica |
+| `GET /api/admin/orders`, `GET /api/admin/orders/{id}` | Pedidos de todos los clientes, filtro `?status=` |
+| `POST /api/admin/orders/{id}/cancel` | Cancela un pedido **pagado** y devuelve el stock |
+| `GET /api/admin/users` | Usuarios sin datos sensibles |
+| `GET /api/admin/audit-logs` | Eventos, filtros `?action=` y `?userId=` |
+
+Controles:
+- **Validación por campo** (SKU `[A-Z0-9-]{3,32}`, precio y stock con rangos, `imagePath` solo `/images/<nombre>.png|jpg|jpeg|webp`): bloquea URLs externas, esquemas `javascript:` y recorrido de directorios. Sin subida de archivos (decisión de alcance).
+- **Lista blanca de campos**: crear y editar rechazan campos extra; el `UPDATE` construye las columnas desde un mapa fijo, nunca desde la entrada.
+- **Concurrencia**: la cancelación usa una transición condicional (`UPDATE ... WHERE status = 'paid'`) dentro de una transacción; dos cancelaciones simultáneas no devuelven el stock dos veces.
+- **Paginación acotada** (`perPage` ≤ 100) con valores tipados.
+- **Trazabilidad**: `admin.product_created`, `admin.product_updated` (con los campos modificados), `admin.product_deactivated`, `admin.order_cancelled`.
+
+Riesgos a documentar: la cuenta administradora es un objetivo de alto valor (sin MFA en el alcance; mitigar con contraseña larga, bloqueo por intentos y auditoría) y no existe endpoint para cambiar roles (se crean solo por CLI).
+
+## 8. Decisiones (ADR resumidas)
 
 1. **PHP puro + Composer solo para autoload.** Cumple "sin frameworks"; Composer no añade código de runtime.
 2. **SPA + API JSON** (en vez de HTML en servidor): permite evaluar OWASP API Top 10 (BOLA/IDOR) y encaja con el ciclo de seguridad de APIs.
@@ -90,16 +110,14 @@ Pendiente a documentar como riesgo: no hay clave de idempotencia en `POST /api/o
 4. **Seguro por defecto, vulnerable por rama.** `main` es la versión endurecida. La versión base para el pentest (Fase 7) será una rama/etiqueta `baseline` creada quitando controles de forma deliberada y documentada, solo para el laboratorio local.
 5. **Dinero en centavos (INT)**, snapshot del precio en `order_items` y stock descontado dentro de una transacción.
 
-## 7. Plan por fases
-## 8. Plan por fases
+## 9. Plan por fases
 
 | Fase | Entrega | Estado |
 |---|---|---|
 | **0** | Estructura, Docker, núcleo, controles transversales, esquema BD, scaffold React, pruebas | ✅ |
 | **1** | Autenticación: registro, login, logout, `/me`; Argon2id; bloqueo por intentos; rotación de sesión y CSRF; roles; middleware `Authenticate` y `role` | ✅ |
-| **2** | Catálogo (10 productos, seed), carrito, pedidos, pago simulado; autorización por objeto; transacciones | ⏳ |
 | **2** | Catálogo (10 productos, seed), carrito, pedidos, pago simulado; autorización por objeto; transacciones | ✅ |
-| **3** | Panel de administración (CRUD de productos, pedidos), auditoría | ⏳ |
+| **3** | Panel de administración (CRUD de productos, pedidos, usuarios), consulta de auditoría | ✅ |
 | **4** | Frontend completo: catálogo, carrito, checkout, cuenta, admin | ⏳ |
 | **5** | CI/CD: Semgrep, Dependency-Check/`composer audit`, Trivy, Checkov, ZAP baseline; PHPUnit | ⏳ |
 | **6** | Operaciones: WAF/ModSecurity, Cloudflare, SIEM (Wazuh/ELK), manifiestos K8s mínimos | ⏳ |

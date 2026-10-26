@@ -16,6 +16,15 @@ open http://localhost:8080  # panel de estado de la Fase 0
 make test                   # pruebas del núcleo (requiere PHP 8.3 local)
 ```
 
+Verificación rápida (con la app en ejecución):
+
+```powershell
+node scripts/smoke.mjs                       # flujo de compra
+$env:ADMIN_EMAIL = "admin@novatech.local"; $env:ADMIN_PASSWORD = Read-Host "Contraseña admin"
+node scripts/smoke-admin.mjs                 # panel de administración
+Remove-Item Env:ADMIN_PASSWORD
+```
+
 Crear el administrador (PowerShell):
 
 ```powershell
