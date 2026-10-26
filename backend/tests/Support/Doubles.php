@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 use NovaTech\Core\Contracts\Transactor;
-use NovaTech\Domain\{DuplicateEmailException, Order, OrderItem, OrderStatus, Product, Role, User};
-use NovaTech\Repositories\{OrderRepository, ProductRepository, UserRepository};
+use NovaTech\Domain\{DuplicateEmailException, DuplicateSkuException, Order, OrderItem, OrderStatus, Product, Role, User};
+use NovaTech\Repositories\{AuditLogReader, OrderRepository, ProductRepository, UserRepository};
 use NovaTech\Services\AuditLog;
 
 final class InMemoryUsers implements UserRepository
@@ -60,13 +60,18 @@ final class InMemoryUsers implements UserRepository
         $this->users[$id] = new User($u->id, $u->email, $u->name, $u->role, $hash);
     }
 
+    public function paginate(int $limit, int $offset): array
+    {
+        return ['items' => array_slice(array_values($this->users), $offset, $limit), 'total' => count($this->users)];
+    }
+
     private function withLock(User $u): User
     {
         return new User($u->id, $u->email, $u->name, $u->role, $u->passwordHash, isset($this->locked[$u->id]));
     }
 }
 
-final class ArrayAudit implements AuditLog
+final class ArrayAudit implements AuditLog, AuditLogReader
 {
     /** @var list<array{action: string, userId: ?int, meta: array}> */
     public array $events = [];
@@ -74,6 +79,17 @@ final class ArrayAudit implements AuditLog
     public function record(string $action, ?int $userId, string $ip, array $metadata = []): void
     {
         $this->events[] = ['action' => $action, 'userId' => $userId, 'meta' => $metadata];
+    }
+
+    public function paginate(?string $action, ?int $userId, int $limit, int $offset): array
+    {
+        $rows = [];
+        foreach (array_reverse($this->events, true) as $i => $e) {
+            if (($action === null || $e['action'] === $action) && ($userId === null || $e['userId'] === $userId)) {
+                $rows[] = ['id' => $i + 1, 'userId' => $e['userId'], 'action' => $e['action'], 'ip' => '127.0.0.1', 'metadata' => $e['meta'] ?: null, 'createdAt' => '2026-01-01T00:00:00+00:00'];
+            }
+        }
+        return ['items' => array_slice($rows, $offset, $limit), 'total' => count($rows)];
     }
 
     public function actions(): array
@@ -130,6 +146,37 @@ final class InMemoryProducts implements ProductRepository
     public function restoreStock(int $id, int $quantity): void
     {
         $this->items[$id] = $this->with($this->items[$id], $this->items[$id]->stock + $quantity);
+    }
+
+    public function findAny(int $id): ?Product
+    {
+        return $this->items[$id] ?? null;
+    }
+
+    public function paginate(int $limit, int $offset): array
+    {
+        return ['items' => array_slice(array_values($this->items), $offset, $limit), 'total' => count($this->items)];
+    }
+
+    public function create(string $sku, string $name, string $description, int $priceCents, int $stock, ?string $imagePath): Product
+    {
+        foreach ($this->items as $p) {
+            if ($p->sku === $sku) {
+                throw new DuplicateSkuException();
+            }
+        }
+        $id = max(array_keys($this->items)) + 1;
+        return $this->items[$id] = new Product($id, $sku, $name, $description, $priceCents, $stock, $imagePath, true);
+    }
+
+    public function update(int $id, array $changes): void
+    {
+        $p = $this->items[$id];
+        $this->items[$id] = new Product(
+            $p->id, $p->sku, $changes['name'] ?? $p->name, $changes['description'] ?? $p->description,
+            $changes['priceCents'] ?? $p->priceCents, $changes['stock'] ?? $p->stock,
+            array_key_exists('imagePath', $changes) ? $changes['imagePath'] : $p->imagePath, $changes['active'] ?? $p->active,
+        );
     }
 
     public function setPrice(int $id, int $priceCents): void
@@ -191,6 +238,31 @@ final class InMemoryOrders implements OrderRepository
             }
         }
         return $out;
+    }
+
+    public function findAny(int $orderId): ?Order
+    {
+        return isset($this->rows[$orderId]) ? $this->hydrate($orderId, $this->rows[$orderId]) : null;
+    }
+
+    public function paginate(?OrderStatus $status, int $limit, int $offset): array
+    {
+        $all = [];
+        foreach (array_reverse($this->rows, true) as $id => $r) {
+            if ($status === null || $r['status'] === $status) {
+                $all[] = $this->hydrate($id, $r);
+            }
+        }
+        return ['items' => array_slice($all, $offset, $limit), 'total' => count($all)];
+    }
+
+    public function transition(int $orderId, OrderStatus $from, OrderStatus $to): bool
+    {
+        if (($this->rows[$orderId]['status'] ?? null) !== $from) {
+            return false;
+        }
+        $this->rows[$orderId]['status'] = $to;
+        return true;
     }
 
     private function hydrate(int $id, array $r): Order

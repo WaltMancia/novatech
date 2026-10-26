@@ -19,7 +19,7 @@ use NovaTech\Core\Contracts\{RateLimitStore, Session, Transactor};
 use NovaTech\Core\Exceptions\{HttpException, ValidationException};
 use NovaTech\Core\Support\{ArraySession, FileRateLimitStore};
 use NovaTech\Domain\{DuplicateEmailException, Role, User};
-use NovaTech\Repositories\{OrderRepository, ProductRepository, UserRepository};
+use NovaTech\Repositories\{AuditLogReader, OrderRepository, ProductRepository, UserRepository};
 use NovaTech\Services\{AuditLog, AuthService, PasswordHasher};
 
 $passed = 0;
@@ -80,6 +80,7 @@ function makeApp(?ArraySession &$session = null, ?InMemoryUsers &$users = null, 
         RateLimitStore::class => $store,
         UserRepository::class => $users,
         AuditLog::class => $audit,
+        AuditLogReader::class => $audit,
         ProductRepository::class => $products,
         OrderRepository::class => $orders,
         Transactor::class => new ImmediateTransactor(),
@@ -432,6 +433,7 @@ test('auditoría registra registro, login y logout', function () {
 });
 
 require __DIR__ . '/Feature/ShopTest.php';
+require __DIR__ . '/Feature/AdminTest.php';
 
 echo "\n";
 echo $failed === 0 ? "\033[32mTodo en verde: {$passed} pruebas.\033[0m\n" : "\033[31m{$failed} fallaron, {$passed} pasaron.\033[0m\n";
