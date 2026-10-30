@@ -1,7 +1,8 @@
 <?php
 declare(strict_types=1);
 
-// Precios en centavos de quetzal (GTQ).
+// [sku, nombre, descripción, precio en centavos de quetzal (GTQ), stock inicial]
+// La imagen de cada producto es /images/<sku en minúsculas>.webp (frontend/public/images).
 return [
     ['NV-LAP-14', 'Laptop NovaBook 14', 'Portátil ligera de 14 pulgadas, 16 GB de RAM y 512 GB SSD.', 749900, 15],
     ['NV-PHN-X', 'Smartphone Nova X', 'Pantalla AMOLED de 6.5", 128 GB y cámara de 50 MP.', 389900, 30],

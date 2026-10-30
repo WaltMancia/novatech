@@ -17,11 +17,12 @@ $resetStock = in_array('--reset-stock', $argv, true);
 
 $stockClause = $resetStock ? 'stock = VALUES(stock)' : 'stock = stock';
 foreach (require __DIR__ . '/../database/seeds/products.php' as [$sku, $name, $description, $price, $stock]) {
+    $image = '/images/' . strtolower($sku) . '.webp';
     $db->execute(
-        "INSERT INTO products (sku, name, description, price_cents, stock) VALUES (?, ?, ?, ?, ?)
+        "INSERT INTO products (sku, name, description, price_cents, stock, image_path) VALUES (?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description),
-                                 price_cents = VALUES(price_cents), {$stockClause}",
-        [$sku, $name, $description, $price, $stock],
+                                 price_cents = VALUES(price_cents), image_path = VALUES(image_path), {$stockClause}",
+        [$sku, $name, $description, $price, $stock, $image],
     );
 }
 echo 'Catálogo cargado: ' . count(require __DIR__ . '/../database/seeds/products.php') . ' productos' . ($resetStock ? ' (stock restablecido)' : '') . ".\n";
