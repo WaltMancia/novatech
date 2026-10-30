@@ -33,6 +33,10 @@ docker compose run --rm -e ADMIN_PASSWORD app php bin/create-admin.php admin@nov
 Remove-Item Env:ADMIN_PASSWORD
 ```
 
+Imágenes de producto: `frontend/public/images/<sku en minúsculas>.webp` (800×600). Son ilustraciones propias; para usar fotos reales (p. ej. de Unsplash o Pexels, con licencia libre) basta reemplazar los archivos conservando el nombre. Tras cambiar la semilla: `docker compose run --rm app php bin/seed.php`.
+
+Pruebas del frontend: `cd frontend && npm test`.
+
 Desarrollo del frontend con recarga en caliente: `cd frontend && npm install && npm run dev` (puerto 5173, proxy a `/api`).
 
 ## Estructura

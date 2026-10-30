@@ -102,7 +102,29 @@ Controles:
 
 Riesgos a documentar: la cuenta administradora es un objetivo de alto valor (sin MFA en el alcance; mitigar con contraseña larga, bloqueo por intentos y auditoría) y no existe endpoint para cambiar roles (se crean solo por CLI).
 
-## 8. Decisiones (ADR resumidas)
+## 8. Frontend (Fase 4)
+
+SPA con React 19, TypeScript estricto, Tailwind 4 y `react-router-dom`.
+
+| Ruta | Acceso |
+|---|---|
+| `/`, `/products/:id`, `/login`, `/register` | Público |
+| `/cart`, `/checkout`, `/orders`, `/orders/:id` | Sesión (`RequireAuth`) |
+| `/admin/products`, `/admin/orders`, `/admin/users`, `/admin/audit` | Rol admin (`RequireRole`) |
+
+Estructura: `lib/` (cliente de API, autenticación, carrito, formato), `components/` (layout, guardas, UI), `pages/` y `pages/admin/`.
+
+Decisiones y controles:
+- **Las guardas de ruta son solo experiencia de usuario.** La autorización real la aplica el servidor; un cliente que salte la guarda recibe 401/403 de la API.
+- **Cliente de API centralizado:** token CSRF obtenido una vez y enviado en cada petición que cambia estado, un único reintento ante `csrf_mismatch`, errores tipados (`ApiError`) y reinicio del token tras login/logout.
+- **Sin HTML inyectado:** React escapa todo el contenido; no se usa `dangerouslySetInnerHTML`. Los detalles de auditoría se muestran como texto.
+- **El carrito del cliente es un reflejo del servidor:** los precios y totales nunca se calculan en el navegador.
+- **Imágenes locales** (`/images/<sku>.webp`, servidas por Nginx): cumplen la CSP `img-src 'self'` y el patrón validado en el backend; sin recursos de terceros. Si una imagen falla, se muestra un marcador.
+- **Pruebas (Vitest + Testing Library):** cliente de API (CSRF, reintento, errores) y guardas de ruta (anónimo, cliente, administrador, estado de carga).
+
+Riesgo a documentar: el estado de sesión del frontend (usuario, rol) es informativo; manipularlo en el navegador no concede acceso.
+
+## 9. Decisiones (ADR resumidas)
 
 1. **PHP puro + Composer solo para autoload.** Cumple "sin frameworks"; Composer no añade código de runtime.
 2. **SPA + API JSON** (en vez de HTML en servidor): permite evaluar OWASP API Top 10 (BOLA/IDOR) y encaja con el ciclo de seguridad de APIs.
@@ -110,7 +132,7 @@ Riesgos a documentar: la cuenta administradora es un objetivo de alto valor (sin
 4. **Seguro por defecto, vulnerable por rama.** `main` es la versión endurecida. La versión base para el pentest (Fase 7) será una rama/etiqueta `baseline` creada quitando controles de forma deliberada y documentada, solo para el laboratorio local.
 5. **Dinero en centavos (INT)**, snapshot del precio en `order_items` y stock descontado dentro de una transacción.
 
-## 9. Plan por fases
+## 10. Plan por fases
 
 | Fase | Entrega | Estado |
 |---|---|---|
@@ -118,7 +140,7 @@ Riesgos a documentar: la cuenta administradora es un objetivo de alto valor (sin
 | **1** | Autenticación: registro, login, logout, `/me`; Argon2id; bloqueo por intentos; rotación de sesión y CSRF; roles; middleware `Authenticate` y `role` | ✅ |
 | **2** | Catálogo (10 productos, seed), carrito, pedidos, pago simulado; autorización por objeto; transacciones | ✅ |
 | **3** | Panel de administración (CRUD de productos, pedidos, usuarios), consulta de auditoría | ✅ |
-| **4** | Frontend completo: catálogo, carrito, checkout, cuenta, admin | ⏳ |
+| **4** | Frontend completo: catálogo, carrito, checkout, cuenta, admin | ✅ |
 | **5** | CI/CD: Semgrep, Dependency-Check/`composer audit`, Trivy, Checkov, ZAP baseline; PHPUnit | ⏳ |
 | **6** | Operaciones: WAF/ModSecurity, Cloudflare, SIEM (Wazuh/ELK), manifiestos K8s mínimos | ⏳ |
 | **7** | Rama `baseline` vulnerable, pentest caja negra/gris, casos de abuso, heatmap antes/después | ⏳ |
