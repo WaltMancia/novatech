@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 FROM composer:2 AS vendor
 WORKDIR /app
-COPY backend/composer.json ./
+COPY backend/composer.json backend/composer.lock ./
 COPY backend/src ./src
 RUN composer install --no-dev --no-interaction --no-progress --classmap-authoritative
 
@@ -15,3 +15,5 @@ COPY --from=vendor /app/vendor ./vendor
 COPY backend/ ./
 USER www-data
 EXPOSE 9000
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD php -r '$s = @fsockopen("127.0.0.1", 9000, $e, $m, 2); exit($s ? 0 : 1);'

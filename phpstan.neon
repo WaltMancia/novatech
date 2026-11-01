@@ -1,0 +1,8 @@
+parameters:
+    level: 8
+    paths:
+        - backend/src
+        - backend/bootstrap
+        - backend/routes
+        - backend/bin
+    tmpDir: .phpstan-cache
