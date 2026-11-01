@@ -1,0 +1,56 @@
+rules:
+  - id: novatech-web-dangerous-html
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: Inserción de HTML sin escapar (XSS). React ya escapa el contenido; no uses estas APIs.
+    metadata:
+      category: security
+      cwe: "CWE-79: Cross-site Scripting"
+      owasp: "A03:2021 - Injection"
+    pattern-either:
+      - pattern: <$EL dangerouslySetInnerHTML={...} />
+      - pattern: $X.innerHTML = $Y
+      - pattern: $X.outerHTML = $Y
+      - pattern: $X.insertAdjacentHTML(...)
+      - pattern: document.write(...)
+
+  - id: novatech-web-code-execution
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: Evaluación dinámica de código. Está prohibida (rompe la CSP y habilita XSS).
+    metadata:
+      category: security
+      cwe: "CWE-95: Eval Injection"
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+
+  - id: novatech-web-token-in-storage
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: >-
+      Datos en localStorage/sessionStorage. La sesión vive en una cookie HttpOnly; guardar tokens o datos
+      sensibles en el navegador los expone a XSS. Revisa si es necesario.
+    metadata:
+      category: security
+      cwe: "CWE-922: Insecure Storage of Sensitive Information"
+    patterns:
+      - pattern: $S.setItem(...)
+      - metavariable-regex:
+          metavariable: $S
+          regex: ^(window\.)?(localStorage|sessionStorage)$
+
+  - id: novatech-web-direct-fetch
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Usa el cliente de lib/api.ts: centraliza el token CSRF, las cookies y el manejo de errores.
+    paths:
+      include:
+        - frontend/src
+      exclude:
+        - frontend/src/lib/api.ts
+        - frontend/src/test
+    metadata:
+      category: architecture
+    pattern: fetch(...)
