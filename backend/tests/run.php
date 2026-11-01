@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 /**
- * Runner mínimo sin dependencias: php tests/run.php
- * (PHPUnit se integra en la Fase 5 con el pipeline CI.)
+ * Runner mínimo sin dependencias de terceros: php tests/run.php
+ * Se ejecuta en cada push desde el pipeline de CI (.github/workflows/ci.yml).
  */
 
 putenv('APP_ENV=testing');

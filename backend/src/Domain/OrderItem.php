@@ -13,6 +13,7 @@ final readonly class OrderItem
     ) {
     }
 
+    /** @return array<string, mixed> */
     public function toPublic(): array
     {
         return [

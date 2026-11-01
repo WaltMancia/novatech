@@ -16,11 +16,13 @@ final readonly class User
     }
 
     /** Representación segura para la API: nunca incluye el hash. */
+    /** @return array<string, mixed> */
     public function toPublic(): array
     {
         return ['id' => $this->id, 'email' => $this->email, 'name' => $this->name, 'role' => $this->role->value];
     }
 
+    /** @return array<string, mixed> */
     public function toAdmin(): array
     {
         return [...$this->toPublic(), 'locked' => $this->locked];

@@ -69,6 +69,7 @@ final class PdoUserRepository implements UserRepository
     public function paginate(int $limit, int $offset): array
     {
         $total = (int) ($this->db->fetchOne('SELECT COUNT(*) AS n FROM users')['n'] ?? 0);
+        // nosemgrep: novatech-php-sql-interpolation - $limit y $offset son int tipados.
         $rows = $this->db->fetchAll(self::SELECT . " ORDER BY id LIMIT {$limit} OFFSET {$offset}");
         return ['items' => array_map($this->hydrate(...), $rows), 'total' => $total];
     }

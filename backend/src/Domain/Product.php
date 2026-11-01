@@ -17,6 +17,7 @@ final readonly class Product
     ) {
     }
 
+    /** @return array<string, mixed> */
     public function toPublic(): array
     {
         return [

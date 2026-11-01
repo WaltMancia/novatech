@@ -13,6 +13,7 @@ final class Request
     private array $headers;
 
     /** Contexto mutable compartido por todas las copias de la petición (p. ej. la ruta resuelta, para el access log). */
+    /** @var ArrayObject<string, mixed> */
     public readonly ArrayObject $context;
 
     /**
@@ -21,6 +22,7 @@ final class Request
      * @param array<string, mixed>  $server
      * @param array<string, string> $params
      * @param array<string, mixed>  $attributes
+     * @param ArrayObject<string, mixed>|null $context
      */
     public function __construct(
         public readonly string $method,
@@ -60,7 +62,7 @@ final class Request
         $body = '';
         $tooLarge = $declared > $maxBodyBytes;
         if (!$tooLarge) {
-            $body = (string) file_get_contents('php://input', false, null, 0, $maxBodyBytes + 1);
+            $body = (string) file_get_contents('php://input', false, null, 0, max(0, $maxBodyBytes) + 1);
             $tooLarge = strlen($body) > $maxBodyBytes;
         }
 
@@ -103,7 +105,11 @@ final class Request
         return is_string($https) && $https !== '' && strtolower($https) !== 'off';
     }
 
-    /** Cuerpo JSON como objeto asociativo. Lanza 413/415/400 según corresponda. */
+    /**
+     * Cuerpo JSON como objeto asociativo. Lanza 413/415/400 según corresponda.
+     *
+     * @return array<string, mixed>
+     */
     public function json(): array
     {
         if ($this->bodyTooLarge) {

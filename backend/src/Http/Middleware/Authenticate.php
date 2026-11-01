@@ -28,7 +28,7 @@ final class Authenticate implements Middleware
             throw new HttpException(401, 'unauthenticated', 'Debes iniciar sesión.');
         }
 
-        $request->context['user_id'] = $user->id;
+        $request->context->offsetSet('user_id', $user->id);
         return $next($request->withAttribute('user', $user));
     }
 }

@@ -32,7 +32,7 @@ final class App
     {
         $core = function (Request $r): Response {
             $match = $this->router->dispatch($r);
-            $r->context['route'] = $match['pattern'];
+            $r->context->offsetSet('route', $match['pattern']);
             $r = $r->withParams($match['params'])->withAttribute('route', $match['pattern']);
             $handler = $match['handler'];
             $final = fn (Request $req): Response => $this->invoke($handler, $req);
@@ -63,18 +63,21 @@ final class App
         if (isset($this->aliases[$name])) {
             return ($this->aliases[$name])($this->container, $args === '' ? [] : explode(',', $args));
         }
-        $instance = $this->container->get($spec);
-        if (!$instance instanceof Middleware) {
+        if (!is_a($spec, Middleware::class, true)) {
             throw new LogicException("'{$spec}' no implementa Middleware.");
         }
-        return $instance;
+        return $this->container->get($spec);
     }
 
+    /** @param array{class-string, string}|Closure(Request): Response $handler */
     private function invoke(array|Closure $handler, Request $request): Response
     {
-        $response = $handler instanceof Closure
-            ? $handler($request)
-            : [$this->container->get($handler[0]), $handler[1]]($request);
+        if ($handler instanceof Closure) {
+            $response = $handler($request);
+        } else {
+            [$class, $method] = $handler;
+            $response = $this->container->get($class)->$method($request);
+        }
 
         if (!$response instanceof Response) {
             throw new LogicException('Un controlador debe devolver una Response.');

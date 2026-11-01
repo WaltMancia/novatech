@@ -61,6 +61,7 @@ final class PdoProductRepository implements ProductRepository
     {
         $total = (int) ($this->db->fetchOne('SELECT COUNT(*) AS n FROM products')['n'] ?? 0);
         // $limit y $offset son int tipados: se interpolan como literales.
+        // nosemgrep: novatech-php-sql-interpolation - $limit y $offset son int tipados.
         $rows = $this->db->fetchAll(self::SELECT . " ORDER BY id LIMIT {$limit} OFFSET {$offset}");
         return ['items' => array_map($this->hydrate(...), $rows), 'total' => $total];
     }
@@ -101,6 +102,7 @@ final class PdoProductRepository implements ProductRepository
             return;
         }
         $params[] = $id;
+        // nosemgrep: novatech-php-sql-interpolation - Las columnas salen de una lista blanca fija; los valores van enlazados.
         $this->db->execute('UPDATE products SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
     }
 
@@ -114,7 +116,8 @@ final class PdoProductRepository implements ProductRepository
             return [];
         }
         $marks = implode(',', array_fill(0, count($ids), '?'));
-        $rows = $this->db->fetchAll(self::SELECT . " WHERE is_active = 1 AND id IN ({$marks}) ORDER BY id" . $suffix, array_values($ids));
+        // nosemgrep: novatech-php-sql-interpolation - $marks solo contiene marcadores '?' y $suffix es un literal fijo.
+        $rows = $this->db->fetchAll(self::SELECT . " WHERE is_active = 1 AND id IN ({$marks}) ORDER BY id" . $suffix, $ids);
 
         $out = [];
         foreach ($rows as $row) {

@@ -13,13 +13,18 @@ final class AdminCatalogService
     {
     }
 
-    /** @param array{sku: string, name: string, description: string, priceCents: int, stock: int, imagePath?: ?string} $data */
-    public function create(User $admin, array $data, string $ip): Product
-    {
+    public function create(
+        User $admin,
+        string $sku,
+        string $name,
+        string $description,
+        int $priceCents,
+        int $stock,
+        ?string $imagePath,
+        string $ip,
+    ): Product {
         try {
-            $product = $this->products->create(
-                $data['sku'], $data['name'], $data['description'], $data['priceCents'], $data['stock'], $data['imagePath'] ?? null,
-            );
+            $product = $this->products->create($sku, $name, $description, $priceCents, $stock, $imagePath);
         } catch (DuplicateSkuException) {
             throw new ValidationException(['sku' => ['Ya existe un producto con ese SKU.']]);
         }

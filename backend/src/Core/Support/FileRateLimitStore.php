@@ -34,7 +34,7 @@ final class FileRateLimitStore implements RateLimitStore
         $state['count']++;
         ftruncate($fh, 0);
         rewind($fh);
-        fwrite($fh, json_encode($state));
+        fwrite($fh, json_encode($state, JSON_THROW_ON_ERROR));
         flock($fh, LOCK_UN);
         fclose($fh);
 

@@ -17,6 +17,7 @@ final readonly class Order
     ) {
     }
 
+    /** @return array<string, mixed> */
     public function toPublic(): array
     {
         return [
@@ -29,6 +30,7 @@ final readonly class Order
         ];
     }
 
+    /** @return array<string, mixed> */
     public function toAdmin(): array
     {
         return ['userId' => $this->userId, ...$this->toPublic()];

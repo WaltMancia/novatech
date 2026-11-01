@@ -18,6 +18,7 @@ $resetStock = in_array('--reset-stock', $argv, true);
 $stockClause = $resetStock ? 'stock = VALUES(stock)' : 'stock = stock';
 foreach (require __DIR__ . '/../database/seeds/products.php' as [$sku, $name, $description, $price, $stock]) {
     $image = '/images/' . strtolower($sku) . '.webp';
+    // nosemgrep: novatech-php-sql-interpolation - $stockClause es uno de dos literales fijos; los valores van enlazados.
     $db->execute(
         "INSERT INTO products (sku, name, description, price_cents, stock, image_path) VALUES (?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description),

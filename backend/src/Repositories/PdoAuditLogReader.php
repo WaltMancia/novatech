@@ -27,8 +27,10 @@ final class PdoAuditLogReader implements AuditLogReader
         }
         $clause = $where === [] ? '' : ' WHERE ' . implode(' AND ', $where);
 
+        // nosemgrep: novatech-php-sql-interpolation - $clause se compone de fragmentos constantes; los valores van enlazados.
         $total = (int) ($this->db->fetchOne("SELECT COUNT(*) AS n FROM audit_logs{$clause}", $params)['n'] ?? 0);
         // $limit y $offset son int tipados: se interpolan como literales.
+        // nosemgrep: novatech-php-sql-interpolation - $clause es constante; $limit y $offset son int tipados.
         $rows = $this->db->fetchAll(
             "SELECT id, user_id, action, ip, metadata, created_at FROM audit_logs{$clause} ORDER BY id DESC LIMIT {$limit} OFFSET {$offset}",
             $params,

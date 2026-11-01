@@ -37,15 +37,23 @@ final class Database implements Transactor
         );
     }
 
-    /** @param array<int|string, scalar|null> $params @return list<array<string, mixed>> */
+    /**
+     * @param array<int|string, scalar|null> $params
+     * @return list<array<string, mixed>>
+     */
     public function fetchAll(string $sql, array $params = []): array
     {
         $stmt = $this->pdo()->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll();
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $rows;
     }
 
-    /** @param array<int|string, scalar|null> $params @return array<string, mixed>|null */
+    /**
+     * @param array<int|string, scalar|null> $params
+     * @return array<string, mixed>|null
+     */
     public function fetchOne(string $sql, array $params = []): ?array
     {
         $stmt = $this->pdo()->prepare($sql);
@@ -72,7 +80,7 @@ final class Database implements Transactor
         $pdo = $this->pdo();
         $pdo->beginTransaction();
         try {
-            $result = $work($this);
+            $result = $work();
             $pdo->commit();
             return $result;
         } catch (Throwable $e) {

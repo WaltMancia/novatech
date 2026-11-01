@@ -72,11 +72,12 @@ final class Validator
     /** @return array{0: string, 1: list<string>} */
     private static function parse(string $rule): array
     {
-        [$name, $arg] = array_pad(explode(':', $rule, 2), 2, null);
-        if ($arg === null) {
+        $parts = explode(':', $rule, 2);
+        $name = $parts[0];
+        if (!isset($parts[1])) {
             return [$name, []];
         }
-        return [$name, $name === 'regex' ? [$arg] : explode(',', $arg)];
+        return [$name, $name === 'regex' ? [$parts[1]] : explode(',', $parts[1])];
     }
 
     /** @param list<string> $args */

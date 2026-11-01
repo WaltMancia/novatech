@@ -48,7 +48,7 @@ final class NativeSession implements Session
         $this->start();
         $_SESSION = [];
         $params = session_get_cookie_params();
-        setcookie(session_name(), '', [
+        setcookie((string) session_name(), '', [
             'expires' => time() - 3600,
             'path' => $params['path'],
             'secure' => $params['secure'],

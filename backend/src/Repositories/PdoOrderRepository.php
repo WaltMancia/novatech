@@ -62,7 +62,9 @@ final class PdoOrderRepository implements OrderRepository
         $where = $status === null ? '' : ' WHERE status = ?';
         $params = $status === null ? [] : [$status->value];
 
+        // nosemgrep: novatech-php-sql-interpolation - $where es un fragmento constante; el valor va enlazado.
         $total = (int) ($this->db->fetchOne("SELECT COUNT(*) AS n FROM orders{$where}", $params)['n'] ?? 0);
+        // nosemgrep: novatech-php-sql-interpolation - $where es constante; $limit y $offset son int tipados.
         $rows = $this->db->fetchAll(self::SELECT . "{$where} ORDER BY id DESC LIMIT {$limit} OFFSET {$offset}", $params);
         return ['items' => $this->withItems($rows), 'total' => $total];
     }
@@ -93,6 +95,7 @@ final class PdoOrderRepository implements OrderRepository
         }
         $ids = array_map(static fn (array $r) => (int) $r['id'], $rows);
         $marks = implode(',', array_fill(0, count($ids), '?'));
+        // nosemgrep: novatech-php-sql-interpolation - $marks solo contiene marcadores '?'; los ids van enlazados.
         $itemRows = $this->db->fetchAll(
             "SELECT oi.order_id, oi.product_id, p.name, oi.quantity, oi.unit_price_cents
                FROM order_items oi JOIN products p ON p.id = oi.product_id

@@ -47,7 +47,16 @@ final class ProductAdminController
             'imagePath' => ['nullable', 'regex:' . self::IMAGE],
         ], rejectUnknown: true);
 
-        $product = $this->catalog->create(CurrentUser::of($request), $data, $request->ip());
+        $product = $this->catalog->create(
+            CurrentUser::of($request),
+            (string) $data['sku'],
+            (string) $data['name'],
+            (string) $data['description'],
+            (int) $data['priceCents'],
+            (int) $data['stock'],
+            isset($data['imagePath']) ? (string) $data['imagePath'] : null,
+            $request->ip(),
+        );
         return Response::json(['product' => $this->view($product)], 201);
     }
 
