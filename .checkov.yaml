@@ -1,0 +1,13 @@
+# Checkov: Dockerfiles y workflows de GitHub Actions.
+framework:
+  - dockerfile
+  - github_actions
+directory:
+  - .
+skip-path:
+  - frontend/node_modules
+  - frontend/dist
+  - backend/vendor
+compact: true
+quiet: true
+skip-download: true

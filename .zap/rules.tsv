@@ -1,0 +1,4 @@
+# Reglas de ZAP baseline: <id de regla>	<IGNORE|INFO|WARN|FAIL>	(comentario)
+# Solo se ignoran alertas informativas o falsos positivos documentados.
+10109	IGNORE	(Modern Web Application: informativa, la aplicación es una SPA)
+10096	IGNORE	(Timestamp Disclosure: falsos positivos en números de los bundles minificados)

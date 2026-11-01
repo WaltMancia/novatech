@@ -1,0 +1,22 @@
+title = "NovaTech: gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Plantillas y datos de prueba sin valor real"
+paths = [
+  '''(^|/)\.env\.example$''',
+  '''(^|/)node_modules/''',
+  '''(^|/)frontend/dist/''',
+  '''(^|/)package-lock\.json$''',
+]
+
+# Contraseñas ficticias usadas solo en pruebas automatizadas y scripts de humo.
+regexes = [
+  '''incorrecta-123''',
+  '''mala-clave-123''',
+  '''clave-segura-123''',
+  '''clave-de-prueba-123''',
+  '''otra-clave-larga-1''',
+]
