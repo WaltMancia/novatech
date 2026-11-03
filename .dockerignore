@@ -8,3 +8,10 @@ frontend/dist/
 .vscode/
 .git
 docs
+.phpstan-cache/
+reports/
+tools/
+.github
+.zap
+semgrep-rules
+scripts

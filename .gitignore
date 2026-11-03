@@ -6,3 +6,6 @@ frontend/dist/
 .DS_Store
 .idea/
 .vscode/
+.phpstan-cache/
+reports/
+tools/
