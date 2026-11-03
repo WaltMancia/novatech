@@ -1,0 +1,123 @@
+name: Security scan (stack completo)
+
+# Pesado (construye y levanta toda la pila): se ejecuta de forma manual, cada semana y al publicar un tag.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1" # lunes 06:00 UTC
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-scan-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  stack:
+    name: Integración, DAST e imágenes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      COMPOSE_PROJECT_NAME: novatech
+      COMPOSE_FILE: docker-compose.yml # sin el override de desarrollo
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Preparar el entorno con secretos efímeros
+        run: |
+          admin_pw=$(openssl rand -hex 16)
+          echo "::add-mask::$admin_pw"
+          echo "ADMIN_PASSWORD=$admin_pw" >> "$GITHUB_ENV"
+          {
+            echo "APP_ENV=production"
+            echo "APP_DEBUG=false"
+            echo "APP_URL=http://localhost:8080"
+            echo "DB_HOST=db"
+            echo "DB_PORT=3306"
+            echo "DB_NAME=novatech"
+            echo "DB_USER=novatech"
+            echo "DB_PASSWORD=$(openssl rand -hex 24)"
+            echo "DB_ROOT_PASSWORD=$(openssl rand -hex 24)"
+          } > .env
+
+      - name: Construir y levantar la pila
+        run: docker compose up -d --build --wait --wait-timeout 240
+
+      - name: Esperar a la API
+        run: curl -sSf --retry 30 --retry-connrefused --retry-delay 2 http://localhost:8080/api/health
+
+      - name: Migraciones, catálogo y administrador
+        run: |
+          docker compose run --rm -T app php bin/migrate.php
+          docker compose run --rm -T app php bin/seed.php
+          docker compose run --rm -T -e ADMIN_PASSWORD app php bin/create-admin.php admin@novatech.test "Admin CI"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Pruebas de humo (compra y administración)
+        run: |
+          node scripts/smoke.mjs http://localhost:8080
+          ADMIN_EMAIL=admin@novatech.test node scripts/smoke-admin.mjs http://localhost:8080
+
+      - name: DAST (OWASP ZAP baseline)
+        run: |
+          mkdir -p reports
+          cp .zap/rules.tsv reports/rules.tsv
+          chmod 777 reports
+          docker run --rm --network host -v "$PWD/reports:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:2.17.0 \
+            zap-baseline.py -t http://localhost:8080 -c rules.tsv -j -I \
+            -r zap-baseline.html -J zap-baseline.json
+
+      - name: Resumen de ZAP
+        if: always()
+        run: |
+          if [ -f reports/zap-baseline.json ]; then
+            {
+              echo "### ZAP baseline"
+              echo '```'
+              jq -r '.site[].alerts[] | .riskdesc' reports/zap-baseline.json | sort | uniq -c | sort -rn
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Trivy - repositorio (dependencias, secretos y configuración)
+        run: |
+          docker run --rm -v "$PWD:/src:ro" -v trivy-cache:/root/.cache aquasec/trivy:0.76.1 \
+            fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+            --skip-dirs frontend/node_modules --skip-dirs frontend/dist /src
+
+      - name: Trivy - imágenes de contenedor
+        run: |
+          for image in novatech-app novatech-web; do
+            echo "::group::$image"
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache -v "$PWD/reports:/reports" \
+              aquasec/trivy:0.76.1 image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 \
+              --format json --output "/reports/trivy-$image.json" "$image:latest"
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache \
+              aquasec/trivy:0.76.1 image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$image:latest"
+            echo "::endgroup::"
+          done
+
+      - name: Registros de los contenedores (si algo falló)
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+      - name: Publicar informes
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: security-reports
+          path: reports/
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Limpiar
+        if: always()
+        run: docker compose down -v
