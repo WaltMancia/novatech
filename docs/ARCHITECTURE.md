@@ -124,7 +124,13 @@ Decisiones y controles:
 
 Riesgo a documentar: el estado de sesión del frontend (usuario, rol) es informativo; manipularlo en el navegador no concede acceso.
 
-## 9. Decisiones (ADR resumidas)
+## 9. Pipeline DevSecOps (Fase 5)
+
+Dos workflows en `.github/workflows/`: `ci.yml` (cada push y PR: PHPStan nivel 8, pruebas, SAST con Semgrep y reglas propias, gitleaks, Checkov, actionlint, `npm audit`) y `security-scan.yml` (manual, semanal y por tag: pila completa, pruebas de humo, ZAP baseline, Trivy). Detalle, evidencia y comandos locales en [DEVSECOPS.md](DEVSECOPS.md).
+
+Decisión: las reglas de Semgrep del proyecto convierten las normas de arquitectura (SQL solo con parámetros, entrada solo vía `Request`, cliente de API único en el frontend) en controles automáticos.
+
+## 10. Decisiones (ADR resumidas)
 
 1. **PHP puro + Composer solo para autoload.** Cumple "sin frameworks"; Composer no añade código de runtime.
 2. **SPA + API JSON** (en vez de HTML en servidor): permite evaluar OWASP API Top 10 (BOLA/IDOR) y encaja con el ciclo de seguridad de APIs.
@@ -132,7 +138,7 @@ Riesgo a documentar: el estado de sesión del frontend (usuario, rol) es informa
 4. **Seguro por defecto, vulnerable por rama.** `main` es la versión endurecida. La versión base para el pentest (Fase 7) será una rama/etiqueta `baseline` creada quitando controles de forma deliberada y documentada, solo para el laboratorio local.
 5. **Dinero en centavos (INT)**, snapshot del precio en `order_items` y stock descontado dentro de una transacción.
 
-## 10. Plan por fases
+## 11. Plan por fases
 
 | Fase | Entrega | Estado |
 |---|---|---|
@@ -141,6 +147,6 @@ Riesgo a documentar: el estado de sesión del frontend (usuario, rol) es informa
 | **2** | Catálogo (10 productos, seed), carrito, pedidos, pago simulado; autorización por objeto; transacciones | ✅ |
 | **3** | Panel de administración (CRUD de productos, pedidos, usuarios), consulta de auditoría | ✅ |
 | **4** | Frontend completo: catálogo, carrito, checkout, cuenta, admin | ✅ |
-| **5** | CI/CD: Semgrep, Dependency-Check/`composer audit`, Trivy, Checkov, ZAP baseline; PHPUnit | ⏳ |
+| **5** | CI/CD: PHPStan, Semgrep, gitleaks, Checkov, `composer`/`npm audit`, Trivy, ZAP baseline, Dependabot | ✅ |
 | **6** | Operaciones: WAF/ModSecurity, Cloudflare, SIEM (Wazuh/ELK), manifiestos K8s mínimos | ⏳ |
 | **7** | Rama `baseline` vulnerable, pentest caja negra/gris, casos de abuso, heatmap antes/después | ⏳ |
