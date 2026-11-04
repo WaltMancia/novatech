@@ -5,7 +5,7 @@ COPY backend/composer.json backend/composer.lock ./
 COPY backend/src ./src
 RUN composer install --no-dev --no-interaction --no-progress --classmap-authoritative
 
-FROM php:8.3-fpm-alpine AS app
+FROM php:8.5-fpm-alpine AS app
 RUN docker-php-ext-install -j"$(nproc)" pdo_mysql opcache \
  && rm -rf /var/cache/apk/* /tmp/*
 COPY docker/php/php.ini      /usr/local/etc/php/conf.d/zz-novatech.ini
