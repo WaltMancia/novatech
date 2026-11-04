@@ -4,7 +4,7 @@
 Mientras el proyecto lo desarrolla una sola persona, se trabaja directamente sobre `main`:
 1. `git switch main && git pull`
 2. Commits pequeños con Conventional Commits: `tipo(ámbito): resumen en imperativo` (máx. ~72 caracteres).
-3. `php backend/tests/run.php` y `npm run build` (en `frontend/`) deben pasar antes del push.
+3. `php backend/tests/run.php`, `npm test` y `npm run build` (en `frontend/`) deben pasar antes del push; las verificaciones de seguridad se describen en `docs/DEVSECOPS.md`.
 4. `git push` y, al cerrar cada fase, un tag `vX.Y.0`.
 
 Cuando se sumen más colaboradores: una rama por tema (`feat/`, `fix/`, `docs/`, `chore/`, `security/`) y Pull Request a `main` con al menos una revisión (merge commit, sin squash).
