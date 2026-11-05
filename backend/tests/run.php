@@ -14,7 +14,7 @@ putenv('LOG_STREAM=/dev/null');
 require __DIR__ . '/../bootstrap/autoload.php';
 require __DIR__ . '/Support/Doubles.php';
 
-use NovaTech\Core\{Container, Request, Response, Router, Validator};
+use NovaTech\Core\{Container, Env, Request, Response, Router, Validator};
 use NovaTech\Core\Contracts\{RateLimitStore, Session, Transactor};
 use NovaTech\Core\Exceptions\{HttpException, ValidationException};
 use NovaTech\Core\Support\{ArraySession, FileRateLimitStore};
@@ -163,6 +163,25 @@ test('regex en formato array admite "|" en el patrón', function () {
 
 test('password: máximo 128 para evitar DoS por hashing', function () {
     fails(fn () => Validator::validate(['p' => str_repeat('a', 129)], ['p' => 'password']), ValidationException::class);
+});
+
+test('Env::get lee secretos desde KEY_FILE (prevalece sobre KEY y falla si el archivo no existe)', function () {
+    $file = tempnam(sys_get_temp_dir(), 'nt_secret');
+    file_put_contents($file, "valor-secreto\n");
+    putenv('NT_TEST_SECRET=desde-entorno');
+    putenv("NT_TEST_SECRET_FILE={$file}");
+    try {
+        same('valor-secreto', Env::get('NT_TEST_SECRET'));
+        putenv('NT_TEST_SECRET_FILE=/ruta/que/no/existe');
+        fails(fn () => Env::get('NT_TEST_SECRET'), RuntimeException::class);
+        putenv('NT_TEST_SECRET_FILE');
+        same('desde-entorno', Env::get('NT_TEST_SECRET'));
+    } finally {
+        putenv('NT_TEST_SECRET');
+        putenv('NT_TEST_SECRET_FILE');
+        unlink($file);
+    }
+    same('por-defecto', Env::get('NT_TEST_SECRET', 'por-defecto'));
 });
 
 echo "\nContainer y Router\n";
@@ -434,6 +453,7 @@ test('auditoría registra registro, login y logout', function () {
 
 require __DIR__ . '/Feature/ShopTest.php';
 require __DIR__ . '/Feature/AdminTest.php';
+require __DIR__ . '/Feature/RuntimeProtectionTest.php';
 
 echo "\n";
 echo $failed === 0 ? "\033[32mTodo en verde: {$passed} pruebas.\033[0m\n" : "\033[31m{$failed} fallaron, {$passed} pasaron.\033[0m\n";
