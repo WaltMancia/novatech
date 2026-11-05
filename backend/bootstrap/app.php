@@ -6,7 +6,7 @@ use NovaTech\Core\Contracts\{RateLimitStore, Session, Transactor};
 use NovaTech\Core\Security\CsrfTokenManager;
 use NovaTech\Core\Support\{FileRateLimitStore, NativeSession};
 use NovaTech\Domain\Role;
-use NovaTech\Http\Middleware\{HandleErrors, RateLimit, RequestContext, RequireRole, SecurityHeaders, VerifyCsrf};
+use NovaTech\Http\Middleware\{HandleErrors, RateLimit, RequestContext, RequireRole, RuntimeProtection, SecurityHeaders, VerifyCsrf};
 use NovaTech\Repositories\{AuditLogReader, DatabaseAuditLog, OrderRepository, PdoAuditLogReader, PdoOrderRepository, PdoProductRepository, PdoUserRepository, ProductRepository, UserRepository};
 use NovaTech\Services\AuditLog;
 use NovaTech\Services\Payment\{PaymentGateway, SimulatedPaymentGateway};
@@ -50,10 +50,11 @@ return static function (array $overrides = [], ?callable $extraRoutes = null): A
         $extraRoutes($router);
     }
 
-    // Orden importa: contexto -> cabeceras -> manejo de errores -> límite global -> CSRF -> router.
+    // Orden importa: contexto -> cabeceras -> protección en ejecución -> manejo de errores -> límite global -> CSRF -> router.
     $global = [
         RequestContext::class,
         SecurityHeaders::class,
+        RuntimeProtection::class,
         HandleErrors::class,
         'throttle:120,60',
         VerifyCsrf::class,

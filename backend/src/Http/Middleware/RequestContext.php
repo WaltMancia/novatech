@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace NovaTech\Http\Middleware;
 
 use NovaTech\Core\Contracts\Middleware;
+use NovaTech\Http\ErrorResponse;
 use NovaTech\Core\{Logger, Request, Response};
 
 /** Asigna un request-id y escribe el access log estructurado (insumo del SIEM). */
@@ -32,7 +33,9 @@ final class RequestContext implements Middleware
             'status' => $response->status,
             'duration_ms' => (int) round((microtime(true) - $start) * 1000),
             'user_id' => $request->context['user_id'] ?? null,
+            'error_code' => ErrorResponse::code($response),
             'ip' => $request->ip(),
+            'srcip' => $request->ip(), // nombre estándar que el SIEM (Wazuh) reconoce para correlacionar
             'user_agent' => $request->userAgent(),
         ]);
         return $response;

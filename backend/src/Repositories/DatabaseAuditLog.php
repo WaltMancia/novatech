@@ -16,7 +16,7 @@ final class DatabaseAuditLog implements AuditLog
 
     public function record(string $action, ?int $userId, string $ip, array $metadata = []): void
     {
-        $this->logger->info('audit', ['action' => $action, 'user_id' => $userId, 'ip' => $ip, ...$metadata]);
+        $this->logger->info('audit', ['action' => $action, 'user_id' => $userId, 'ip' => $ip, 'srcip' => $ip, ...$metadata]);
         try {
             $this->db->execute(
                 'INSERT INTO audit_logs (user_id, action, ip, metadata) VALUES (?, ?, ?, ?)',

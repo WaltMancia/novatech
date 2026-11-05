@@ -5,8 +5,20 @@ namespace NovaTech\Core;
 
 final class Env
 {
+    /**
+     * Si existe KEY_FILE, el valor se lee de ese archivo (convención de Docker/Kubernetes para secretos):
+     * así la contraseña no aparece en el entorno del proceso ni en `docker inspect`.
+     */
     public static function get(string $key, string $default = ''): string
     {
+        $file = getenv($key . '_FILE');
+        if ($file !== false && $file !== '') {
+            $content = @file_get_contents($file);
+            if ($content === false) {
+                throw new \RuntimeException("No se pudo leer el secreto indicado en {$key}_FILE.");
+            }
+            return rtrim($content, "\r\n");
+        }
         $value = getenv($key);
         return $value === false ? $default : $value;
     }

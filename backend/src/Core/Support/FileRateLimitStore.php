@@ -18,10 +18,20 @@ final class FileRateLimitStore implements RateLimitStore
         }
     }
 
+    public function peek(string $key): array
+    {
+        $raw = @file_get_contents($this->path($key));
+        $state = $raw === false ? null : json_decode($raw, true);
+        if (!is_array($state) || ($state['resetAt'] ?? 0) <= time()) {
+            return ['count' => 0, 'resetAt' => 0];
+        }
+        return ['count' => (int) $state['count'], 'resetAt' => (int) $state['resetAt']];
+    }
+
     public function hit(string $key, int $windowSeconds): array
     {
         $now = time();
-        $path = $this->directory . '/' . hash('sha256', $key) . '.json';
+        $path = $this->path($key);
         $fh = fopen($path, 'c+');
         if ($fh === false) {
             return ['count' => 1, 'resetAt' => $now + $windowSeconds]; // fail-open si el disco falla
@@ -39,5 +49,10 @@ final class FileRateLimitStore implements RateLimitStore
         fclose($fh);
 
         return ['count' => (int) $state['count'], 'resetAt' => (int) $state['resetAt']];
+    }
+
+    private function path(string $key): string
+    {
+        return $this->directory . '/' . hash('sha256', $key) . '.json';
     }
 }
