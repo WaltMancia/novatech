@@ -24,7 +24,13 @@ export class Client {
       value === '' || /expires=Thu, 01 Jan 1970/i.test(c) ? this.cookies.delete(name) : this.cookies.set(name, value)
     }
     const text = await res.text()
-    return { status: res.status, body: text ? JSON.parse(text) : null }
+    let parsed = null
+    try {
+      parsed = text ? JSON.parse(text) : null
+    } catch {
+      parsed = { raw: text.slice(0, 200) } // p. ej. la página de bloqueo (HTML) del WAF
+    }
+    return { status: res.status, body: parsed }
   }
 
   async login(email, password) {

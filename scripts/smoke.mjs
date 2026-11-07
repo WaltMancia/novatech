@@ -14,7 +14,7 @@ await b.authenticate('smoke-b@novatech.test')
 console.log(`\nFlujo de compra en ${BASE}\n`)
 
 const catalog = await a.call('GET', '/api/products')
-check('catálogo con 10 productos', catalog.body.products.length === 10, `(${catalog.body.products.length})`)
+check('catálogo con al menos los 10 productos de la semilla', catalog.body.products.length >= 10, `(${catalog.body.products.length})`)
 const [laptop, , audio] = catalog.body.products
 const stockBefore = laptop.stock
 

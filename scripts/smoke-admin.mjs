@@ -30,7 +30,7 @@ const created = await admin.call('POST', '/api/admin/products', draft)
 check('admin crea producto (201)', created.status === 201)
 const id = created.body?.product?.id
 check('SKU duplicado -> 422', (await admin.call('POST', '/api/admin/products', draft)).status === 422)
-check('imagePath con esquema javascript: -> 422', (await admin.call('POST', '/api/admin/products', { ...draft, sku: draft.sku + '-X', imagePath: 'javascript:alert(1)' })).status === 422)
+check('imagePath con esquema javascript: rechazado (422 de la API o 403 del WAF)', [403, 422].includes((await admin.call('POST', '/api/admin/products', { ...draft, sku: draft.sku + '-X', imagePath: 'javascript:alert(1)' })).status))
 check('campo extra (id) -> 422', (await admin.call('POST', '/api/admin/products', { ...draft, sku: draft.sku + '-Y', id: 1 })).status === 422)
 
 check('el producto aparece en el catálogo público', (await customer.call('GET', '/api/products')).body.products.some((p) => p.id === id))
@@ -59,6 +59,6 @@ const users = await admin.call('GET', '/api/admin/users')
 check('listado de usuarios sin hashes', users.status === 200 && !JSON.stringify(users.body).includes('argon2'))
 const audit = await admin.call('GET', '/api/admin/audit-logs?action=admin.order_cancelled&perPage=5')
 check('auditoría registra la cancelación', audit.body?.events?.some((e) => e.metadata?.order_id === orderId))
-check('filtro de auditoría con inyección -> 422', (await admin.call('GET', `/api/admin/audit-logs?action=${encodeURIComponent("x' OR 1=1 --")}`)).status === 422)
+check('filtro de auditoría con inyección rechazado (422 o 403 del WAF)', [403, 422].includes((await admin.call('GET', `/api/admin/audit-logs?action=${encodeURIComponent("x' OR 1=1 --")}`)).status))
 
 report.finish()
