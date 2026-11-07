@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app.kubernetes.io/name: web
+  ports:
+    - name: http
+      port: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  annotations:
+    checkov.io/skip1: "CKV_K8S_43=La imagen se construye localmente y se referencia por etiqueta; en producción se fija por digest con la sección images de kustomize."
+    checkov.io/skip2: "CKV_K8S_40=UID nativo de la imagen oficial; el aislamiento lo aportan runAsNonRoot, seccomp RuntimeDefault, drop ALL y sin escalada de privilegios."
+    checkov.io/skip3: "CKV_K8S_15=Imagen local cargada en el clúster (kind); en producción se usa un registro con imagePullPolicy Always."
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: web
+    spec:
+      serviceAccountName: novatech
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101   # nginx en nginx-unprivileged
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: novatech-web:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { cpu: 250m, memory: 128Mi }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}

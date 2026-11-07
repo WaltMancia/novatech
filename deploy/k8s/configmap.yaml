@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: novatech-config
+data:
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_URL: https://novatech.example.com   # ajustar al dominio real (se valida el Origin de las peticiones)
+  DB_HOST: db
+  DB_PORT: "3306"
+  DB_NAME: novatech
+  DB_USER: novatech

@@ -1,0 +1,59 @@
+# Migraciones y datos iniciales. Se ejecuta bajo demanda:  kubectl apply -f deploy/k8s/job-migrate.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  namespace: novatech
+  annotations:
+    checkov.io/skip2: "CKV_K8S_40=UID nativo de la imagen oficial; el aislamiento lo aportan runAsNonRoot, seccomp RuntimeDefault, drop ALL y sin escalada de privilegios."
+    checkov.io/skip3: "CKV_K8S_15=Imagen local cargada en el clúster (kind); en producción se usa un registro con imagePullPolicy Always."
+    checkov.io/skip1: "CKV_K8S_43=La imagen se construye localmente y se referencia por etiqueta; en producción se fija por digest."
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: app   # hereda el acceso a la base de datos definido en la NetworkPolicy
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: novatech
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 82
+        runAsGroup: 82
+        fsGroup: 82
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: novatech-app:local
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "php bin/migrate.php && php bin/seed.php"]
+          envFrom:
+            - configMapRef:
+                name: novatech-config
+          env:
+            - { name: DB_PASSWORD_FILE, value: /etc/novatech/secrets/DB_PASSWORD }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 250m, memory: 128Mi }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: secrets, mountPath: /etc/novatech/secrets, readOnly: true }
+      volumes:
+        - name: secrets
+          secret:
+            secretName: novatech-secrets
+            defaultMode: 0440
+            items:
+              - { key: DB_PASSWORD, path: DB_PASSWORD }
+        - name: tmp
+          emptyDir: {}
