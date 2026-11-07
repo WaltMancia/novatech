@@ -10,6 +10,7 @@ RUN docker-php-ext-install -j"$(nproc)" pdo_mysql opcache \
  && rm -rf /var/cache/apk/* /tmp/*
 COPY docker/php/php.ini      /usr/local/etc/php/conf.d/zz-novatech.ini
 COPY docker/php/www.conf     /usr/local/etc/php-fpm.d/zz-novatech.conf
+RUN mkdir -p /var/log/novatech && chown www-data:www-data /var/log/novatech
 WORKDIR /var/www/backend
 COPY --from=vendor /app/vendor ./vendor
 COPY backend/ ./

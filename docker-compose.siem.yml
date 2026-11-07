@@ -1,0 +1,22 @@
+# Overlay opcional: escribe los logs de la API y las auditorías del WAF en volúmenes que lee Wazuh.
+#   node scripts/wazuh.mjs up      (crea los volúmenes, levanta Wazuh y arranca NovaTech con este overlay)
+services:
+  app:
+    environment:
+      LOG_STREAM: /var/log/novatech/app.log
+    volumes:
+      - applogs:/var/log/novatech
+
+  waf:
+    environment:
+      MODSEC_AUDIT_LOG: /var/log/modsecurity/audit/modsec_audit.log
+    volumes:
+      - waflogs:/var/log/modsecurity
+
+volumes:
+  applogs:
+    external: true
+    name: novatech_applogs
+  waflogs:
+    external: true
+    name: novatech_waflogs
