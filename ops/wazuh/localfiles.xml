@@ -1,0 +1,13 @@
+<ossec_config>
+  <!-- Logs de NovaTech montados (solo lectura) en el contenedor del manager de Wazuh. -->
+  <localfile>
+    <log_format>json</log_format>
+    <location>/var/log/novatech/app.log</location>
+    <label key="source">novatech-api</label>
+  </localfile>
+  <localfile>
+    <log_format>json</log_format>
+    <location>/var/log/modsecurity/audit/modsec_audit.log</location>
+    <label key="source">novatech-waf</label>
+  </localfile>
+</ossec_config>

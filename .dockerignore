@@ -15,3 +15,6 @@ tools/
 .zap
 semgrep-rules
 scripts
+
+ops
+deploy

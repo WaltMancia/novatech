@@ -1,0 +1,172 @@
+<!--
+  Reglas de Wazuh para NovaTech (IDs 100100-100299, rango reservado a reglas locales).
+  Fuentes de log (JSON, una línea por evento):
+    - API:  /var/log/novatech/app.log                         (msg: http_request | audit | security_event)
+    - WAF:  /var/log/modsecurity/audit/modsec_audit.log       (transacciones relevantes de ModSecurity)
+  Validación: node scripts/wazuh.mjs logtest   (usa ops/wazuh/samples.log, líneas reales)
+-->
+<group name="novatech,">
+
+  <!-- ===================== API ===================== -->
+  <rule id="100100" level="0">
+    <decoded_as>json</decoded_as>
+    <field name="service">^novatech-api$</field>
+    <description>NovaTech API: evento de aplicación.</description>
+  </rule>
+
+  <rule id="100101" level="8">
+    <if_sid>100100</if_sid>
+    <field name="msg">^http_request$</field>
+    <regex type="pcre2">"status":5\d\d</regex>
+    <description>NovaTech API: error interno (5xx) en $(route).</description>
+    <group>web,availability,</group>
+  </rule>
+
+  <!-- Autenticación -->
+  <rule id="100110" level="5">
+    <if_sid>100100</if_sid>
+    <field name="msg">^audit$</field>
+    <field name="action">^auth.login_failed$</field>
+    <description>NovaTech: inicio de sesión fallido ($(reason)) desde $(srcip).</description>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+    <group>authentication_failed,</group>
+  </rule>
+
+  <rule id="100111" level="10" frequency="8" timeframe="120" ignore="60">
+    <if_matched_sid>100110</if_matched_sid>
+    <same_field>srcip</same_field>
+    <description>NovaTech: posible fuerza bruta (8 inicios de sesión fallidos en 2 minutos desde la misma IP).</description>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+    <group>authentication_failures,</group>
+  </rule>
+
+  <rule id="100112" level="8">
+    <if_sid>100110</if_sid>
+    <field name="reason">^locked$</field>
+    <description>NovaTech: intento de acceso a una cuenta bloqueada desde $(srcip).</description>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+    <group>authentication_failures,</group>
+  </rule>
+
+  <!-- Rechazos de seguridad en la API -->
+  <rule id="100120" level="6">
+    <if_sid>100100</if_sid>
+    <field name="msg">^http_request$</field>
+    <field name="error_code">^(csrf_mismatch|origin_not_allowed)$</field>
+    <description>NovaTech: petición rechazada por CSRF/Origin ($(error_code)) desde $(srcip).</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>web,csrf,</group>
+  </rule>
+
+  <rule id="100121" level="9" frequency="5" timeframe="300" ignore="120">
+    <if_matched_sid>100120</if_matched_sid>
+    <same_field>srcip</same_field>
+    <description>NovaTech: ráfaga de fallos CSRF/Origin desde la misma IP.</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>web,csrf,</group>
+  </rule>
+
+  <rule id="100122" level="6">
+    <if_sid>100100</if_sid>
+    <field name="msg">^http_request$</field>
+    <field name="error_code">^rate_limited$</field>
+    <description>NovaTech: límite de tasa superado en $(route) desde $(srcip).</description>
+    <group>web,dos,</group>
+  </rule>
+
+  <rule id="100123" level="7">
+    <if_sid>100100</if_sid>
+    <field name="msg">^http_request$</field>
+    <field name="error_code">^forbidden$</field>
+    <description>NovaTech: acceso denegado por rol en $(route) (usuario $(user_id), IP $(srcip)).</description>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+    <group>authorization_failed,</group>
+  </rule>
+
+  <rule id="100124" level="10" frequency="4" timeframe="300" ignore="120">
+    <if_matched_sid>100123</if_matched_sid>
+    <same_field>user_id</same_field>
+    <description>NovaTech: el usuario $(user_id) insiste en acceder a recursos sin permiso (posible escalamiento de privilegios).</description>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+    <group>authorization_failed,</group>
+  </rule>
+
+  <!-- Acciones administrativas (trazabilidad) -->
+  <rule id="100130" level="5">
+    <if_sid>100100</if_sid>
+    <field name="msg">^audit$</field>
+    <field name="action">^admin.</field>
+    <description>NovaTech: acción administrativa $(action) realizada por el usuario $(user_id) desde $(srcip).</description>
+    <group>admin_actions,</group>
+  </rule>
+
+  <!-- RASP: eventos de protección en tiempo de ejecución -->
+  <rule id="100140" level="10">
+    <if_sid>100100</if_sid>
+    <field name="msg">^security_event$</field>
+    <description>NovaTech RASP: $(event) desde $(srcip); IP bloqueada temporalmente.</description>
+    <group>rasp,</group>
+  </rule>
+
+  <rule id="100141" level="12">
+    <if_sid>100140</if_sid>
+    <field name="event">^anomaly.idor_enumeration$</field>
+    <description>NovaTech RASP: enumeración de pedidos ajenos (posible BOLA/IDOR) por el usuario $(user_id) desde $(srcip).</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>rasp,authorization_failed,</group>
+  </rule>
+
+  <rule id="100142" level="10">
+    <if_sid>100140</if_sid>
+    <field name="event">^anomaly.error_burst$</field>
+    <description>NovaTech RASP: ráfaga de errores de cliente desde $(srcip) (escaneo o fuzzing).</description>
+    <mitre>
+      <id>T1595</id>
+    </mitre>
+    <group>rasp,recon,</group>
+  </rule>
+
+  <!-- ===================== WAF (ModSecurity, JSON) ===================== -->
+  <rule id="100200" level="0">
+    <decoded_as>json</decoded_as>
+    <field name="transaction.client_ip">\.+</field>
+    <description>ModSecurity (WAF): transacción registrada.</description>
+  </rule>
+
+  <rule id="100201" level="8">
+    <if_sid>100200</if_sid>
+    <field name="transaction.response.http_code">^403$</field>
+    <description>WAF: petición bloqueada desde $(transaction.client_ip) hacia $(transaction.request.uri).</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>web,attack,</group>
+  </rule>
+
+  <rule id="100202" level="12" frequency="5" timeframe="120" ignore="120">
+    <if_matched_sid>100201</if_matched_sid>
+    <same_field>transaction.client_ip</same_field>
+    <description>WAF: múltiples bloqueos desde la misma IP (escaneo o ataque en curso).</description>
+    <mitre>
+      <id>T1595</id>
+    </mitre>
+    <group>web,attack,recon,</group>
+  </rule>
+
+</group>

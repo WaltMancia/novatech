@@ -9,3 +9,6 @@ frontend/dist/
 .phpstan-cache/
 reports/
 tools/
+
+ops/wazuh/upstream/
+ops/wazuh/generated/
