@@ -150,7 +150,7 @@ jobs:
         run: ./gitleaks git . --config .gitleaks.toml --redact --no-banner
 
   iac:
-    name: IaC y workflows (Checkov, actionlint)
+    name: IaC, Kubernetes, SIEM y workflows
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -167,6 +167,24 @@ jobs:
 
       - name: Checkov (Dockerfiles y GitHub Actions)
         run: checkov --config-file .checkov.yaml
+
+      - name: Instalar kustomize y kubeconform (checksum verificado)
+        run: |
+          curl -sSfL -o kustomize.tgz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.3/kustomize_v5.8.3_linux_amd64.tar.gz"
+          echo "cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61  kustomize.tgz" | sha256sum -c -
+          tar -xzf kustomize.tgz kustomize
+          curl -sSfL -o kubeconform.tgz "https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz"
+          echo "9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883  kubeconform.tgz" | sha256sum -c -
+          tar -xzf kubeconform.tgz kubeconform
+
+      - name: Kubernetes - esquema (kubeconform) y seguridad (Checkov)
+        run: |
+          ./kustomize build deploy/k8s --load-restrictor LoadRestrictionsNone > rendered.yaml
+          ./kubeconform -strict -summary -kubernetes-version 1.31.0 rendered.yaml deploy/k8s/job-migrate.yaml
+          checkov -f rendered.yaml -f deploy/k8s/job-migrate.yaml --framework kubernetes --skip-download --compact --quiet
+
+      - name: Reglas del SIEM (Wazuh) contra logs reales
+        run: python3 scripts/check_wazuh_rules.py
 
       - name: Instalar actionlint (checksum verificado)
         run: |

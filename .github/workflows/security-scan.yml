@@ -66,13 +66,16 @@ jobs:
           node scripts/smoke.mjs http://localhost:8080
           ADMIN_EMAIL=admin@novatech.test node scripts/smoke-admin.mjs http://localhost:8080
 
-      - name: DAST (OWASP ZAP baseline)
+      - name: Verificar el WAF (ataques bloqueados, tráfico legítimo permitido)
+        run: node scripts/waf-check.mjs http://localhost:8080
+
+      - name: DAST (OWASP ZAP baseline contra la aplicación, sin pasar por el WAF)
         run: |
           mkdir -p reports
           cp .zap/rules.tsv reports/rules.tsv
           chmod 777 reports
-          docker run --rm --network host -v "$PWD/reports:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:2.17.0 \
-            zap-baseline.py -t http://localhost:8080 -c rules.tsv -j -I \
+          docker run --rm --network novatech_edge -v "$PWD/reports:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:2.17.0 \
+            zap-baseline.py -t http://web:8080 -c rules.tsv -j -I \
             -r zap-baseline.html -J zap-baseline.json
 
       - name: Resumen de ZAP
@@ -104,6 +107,11 @@ jobs:
               aquasec/trivy:0.76.1 image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$image:latest"
             echo "::endgroup::"
           done
+
+      - name: Trivy - imagen del WAF (informativo, es de terceros)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache aquasec/trivy:0.76.1 \
+            image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 owasp/modsecurity-crs:nginx
 
       - name: Registros de los contenedores (si algo falló)
         if: failure()
