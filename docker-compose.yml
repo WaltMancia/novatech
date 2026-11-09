@@ -46,7 +46,7 @@ services:
     restart: unless-stopped
 
   db:
-    image: mariadb:11
+    image: mariadb:13
     environment:
       MARIADB_DATABASE: ${DB_NAME:?definir DB_NAME}
       MARIADB_USER: ${DB_USER:?definir DB_USER}
