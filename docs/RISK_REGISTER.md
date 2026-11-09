@@ -1,0 +1,50 @@
+# Registro de riesgos y matriz de calor
+
+> Generado con `node scripts/risk-heatmap.mjs` a partir de [risk/risks.json](risk/risks.json). No editar a mano: modificar el JSON y regenerar.
+
+Probabilidad (P) e Impacto (I) de 1 a 5. Puntaje = P x I. Bajo 1-4, Medio 5-9, Alto 10-14, Crítico 15-25.
+
+## Matriz de calor (antes y después)
+
+![Matriz de calor](risk/heatmap.svg)
+
+| | Distribución |
+|---|---|
+| **Inicial** | Bajo: 0 · Medio: 5 · Alto: 3 · Crítico: 12 |
+| **Residual** | Bajo: 8 · Medio: 10 · Alto: 2 · Crítico: 0 |
+
+## Registro y tratamiento
+
+Decisión por riesgo: **Aceptar, Eliminar, Evitar, Mitigar o Transferir**. Tipo: Software, Seguridad, Técnico, Cloud, Legal. Impacto: Reputacional, Operacional, Financiero, Legal.
+
+| ID | Riesgo | Tipo | Impacto | Inicial (P×I) | Tratamiento | Controles implementados | Residual (P×I) |
+|---|---|---|---|---|---|---|---|
+| R01 | Inyección SQL | Software | Financiero | 4×5 = **20** (Crítico) | Mitigar | Consultas preparadas (PDO, EMULATE_PREPARES=false); Validator por lista blanca; regla Semgrep novatech-php-sql-interpolation; WAF (CRS 942) | 1×5 = **5** (Medio) |
+| R06 | Fuerza bruta y credential stuffing | Seguridad | Operacional | 5×4 = **20** (Crítico) | Mitigar | Argon2id; bloqueo 5 fallos/15 min; límite de tasa; RASP; WAF; regla Wazuh 100111 | 2×4 = **8** (Medio) |
+| R02 | Cross-Site Scripting (XSS) | Software | Reputacional | 4×4 = **16** (Crítico) | Mitigar | React escapa la salida; CSP estricta; sin dangerouslySetInnerHTML (Semgrep); WAF (CRS 941) | 1×4 = **4** (Bajo) |
+| R04 | Acceso a pedidos ajenos (BOLA/IDOR) | Seguridad | Legal | 4×4 = **16** (Crítico) | Mitigar | Propiedad verificada en el SQL (404 en ajenos); RASP de enumeración; regla Wazuh 100141; pruebas automatizadas | 1×4 = **4** (Bajo) |
+| R10 | Manipulación de precios desde el cliente | Software | Financiero | 4×4 = **16** (Crítico) | Mitigar | El carrito guarda solo id y cantidad; precios siempre del servidor; rechazo de campos extra; snapshot de precio en el pedido | 1×4 = **4** (Bajo) |
+| R11 | Dependencias y componentes vulnerables | Software | Operacional | 4×4 = **16** (Crítico) | Mitigar | composer/npm audit en CI; Trivy; Dependabot; lockfiles; (evidencia: vulnerabilidad alta en vite detectada y corregida) | 2×4 = **8** (Medio) |
+| R15 | Detección tardía de ataques | Seguridad | Reputacional | 4×4 = **16** (Crítico) | Mitigar | Logs JSON estructurados; auditoría en base de datos; RASP; SIEM Wazuh con 17 reglas y correlación | 2×3 = **6** (Medio) |
+| R05 | Escalamiento de privilegios a administrador | Seguridad | Financiero | 3×5 = **15** (Crítico) | Mitigar | Autorización deny-by-default (role:admin); rechazo de campos extra (mass assignment); auditoría; regla Wazuh 100124 | 1×5 = **5** (Medio) |
+| R12 | Exposición de secretos | Seguridad | Legal | 3×5 = **15** (Crítico) | Mitigar | gitleaks sobre el historial; .env fuera del repositorio; secretos como archivo (KEY_FILE); Secrets de Kubernetes | 1×5 = **5** (Medio) |
+| R13 | Mala configuración de contenedores e infraestructura | Cloud | Operacional | 3×5 = **15** (Crítico) | Mitigar | Checkov y Trivy en CI; contenedores sin root, solo lectura y sin capacidades; redes segmentadas; Pod Security restricted y NetworkPolicy. Residual alto: la infraestructura aún no se ha validado en un clúster real | 2×5 = **10** (Alto) |
+| R17 | Cuenta de administración sin MFA | Seguridad | Financiero | 3×5 = **15** (Crítico) | Aceptar | Contraseña de 12+ caracteres, Argon2id, bloqueo, auditoría y alertas. Aceptado por alcance; mejora recomendada: TOTP (ver hoja de ruta) | 2×5 = **10** (Alto) |
+| R19 | Tratamiento de datos de tarjeta (PCI DSS) | Legal | Legal | 3×5 = **15** (Crítico) | Evitar | Pagos simulados: la aplicación nunca recibe ni almacena datos de tarjeta, por lo que PCI DSS queda fuera de alcance | 1×2 = **2** (Bajo) |
+| R03 | Cross-Site Request Forgery (CSRF) | Seguridad | Financiero | 4×3 = **12** (Alto) | Mitigar | Token sincronizado + validación de Origin + cookie SameSite; alerta Wazuh 100121 | 1×3 = **3** (Bajo) |
+| R14 | Denegación de servicio y abuso de recursos | Técnico | Operacional | 4×3 = **12** (Alto) | Transferir | Límite de tasa y de cuerpo; WAF; mitigación volumétrica transferida a la CDN (Cloudflare, ver docs/CLOUDFLARE.md) | 2×3 = **6** (Medio) |
+| R20 | Carga de archivos maliciosos | Software | Operacional | 3×4 = **12** (Alto) | Eliminar | No existe funcionalidad de subida de archivos; imagePath restringido a /images/<nombre>.<ext> internas | 1×1 = **1** (Bajo) |
+| R09 | Sobreventa de inventario (condición de carrera) | Software | Financiero | 3×3 = **9** (Medio) | Mitigar | Bloqueo de filas (FOR UPDATE) y descuento condicional en transacción; prueba con compradores simultáneos | 1×3 = **3** (Bajo) |
+| R16 | Fuga de datos sensibles en los registros | Seguridad | Legal | 3×3 = **9** (Medio) | Mitigar | Redacción automática de claves sensibles en el Logger; no se registran cuerpos de petición; reglas de arquitectura en Semgrep | 1×3 = **3** (Bajo) |
+| R08 | Enumeración de usuarios en el registro | Seguridad | Reputacional | 4×2 = **8** (Medio) | Aceptar | Login con respuesta uniforme; registro limitado a 5 por 10 min. Aceptado: el correo duplicado debe informarse al usuario | 3×2 = **6** (Medio) |
+| R18 | Indisponibilidad o fallo físico del proveedor cloud | Cloud | Operacional | 2×4 = **8** (Medio) | Transferir | Se transfiere al proveedor (SLA, certificaciones ISO 27001/SOC 2); copias de seguridad de la base de datos recomendadas | 2×3 = **6** (Medio) |
+| R07 | Bloqueo de cuentas por terceros (DoS dirigido) | Técnico | Operacional | 3×2 = **6** (Medio) | Aceptar | Bloqueo de corta duración y límite por IP. Riesgo aceptado: el efecto es temporal y de bajo impacto | 3×2 = **6** (Medio) |
+
+## Riesgos que permanecen en nivel Alto o superior
+
+- **R13 Mala configuración de contenedores e infraestructura** (10, Alto): Checkov y Trivy en CI; contenedores sin root, solo lectura y sin capacidades; redes segmentadas; Pod Security restricted y NetworkPolicy. Residual alto: la infraestructura aún no se ha validado en un clúster real
+- **R17 Cuenta de administración sin MFA** (10, Alto): Contraseña de 12+ caracteres, Argon2id, bloqueo, auditoría y alertas. Aceptado por alcance; mejora recomendada: TOTP (ver hoja de ruta)
+
+## Revisión
+
+El registro se revisa al cerrar cada fase y cuando un escaneo (SAST, SCA, DAST o Trivy) o el SIEM revele un riesgo nuevo. Cada cambio de puntaje debe citar la evidencia (prueba, informe o commit).
