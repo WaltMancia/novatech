@@ -27,7 +27,10 @@ manual · lunes 06:00 UTC · tag v* ─► security-scan.yml (pesado, pila compl
 | Secretos | **gitleaks** | Secretos en el árbol y en todo el historial | Sí |
 | IaC | **Checkov** | Dockerfiles y workflows de GitHub Actions | Sí |
 | IaC | **Trivy** `fs` (misconfig) | Configuración de Dockerfile | Sí (alta/crítica) |
-| Contenedores | **Trivy** `image` | CVE del SO base y paquetes (con corrección disponible) | Sí (alta/crítica) |
+| Contenedores | **Trivy** `image` | CVE del SO base y paquetes (con corrección disponible); imagen del WAF solo informativa | Sí (alta/crítica) |
+| IaC (Kubernetes) | **kustomize + kubeconform + Checkov** | Esquema y seguridad de `deploy/k8s` | Sí |
+| WAF | `scripts/waf-check.mjs` | Ataques bloqueados y tráfico legítimo permitido a través del WAF | Sí (en el escaneo completo) |
+| SIEM | `scripts/check_wazuh_rules.py` | Reglas de Wazuh contra logs reales | Sí |
 | DAST | **OWASP ZAP** baseline | Escaneo pasivo + araña de la SPA y la API en ejecución | Solo FAIL (ver `.zap/rules.tsv`) |
 | Cadena de suministro | **Dependabot** | Actualizaciones semanales de npm, composer, Docker y Actions | PRs |
 | Integración | `scripts/smoke*.mjs` en la pila real | Flujo de compra y panel admin sobre contenedores | Sí |
@@ -44,8 +47,13 @@ Buenas prácticas aplicadas al pipeline: acciones fijadas por SHA de commit, per
 | npm audit | 1 vulnerabilidad **alta** en `vite` (servidor de desarrollo) | `npm audit fix` | 0 |
 | gitleaks | 4 falsos positivos (contraseñas ficticias de pruebas) | Allowlist acotado a esos valores; se verificó que aún detecta secretos reales | 0 |
 | Pruebas de reglas Semgrep | — | 10/10 casos (reglas detectan lo malo y no lo bueno) | 10/10 |
+| Checkov (Kubernetes) | 19 fallos en los manifiestos | Secretos como archivos, `imagePullPolicy`, y 14 exclusiones justificadas en el propio manifiesto | 441 superadas, 0 fallos |
+| WAF (CRS 4.30.0) | Falso positivo: contraseña con aspecto de SQLi bloqueada | Exclusión estrecha solo para `password` en login/registro | 18/18 |
 
 Excepciones vigentes: 10 comentarios `nosemgrep` (`grep -rn nosemgrep backend`), 2 reglas ZAP ignoradas (`.zap/rules.tsv`), 5 contraseñas de prueba en `.gitleaks.toml`, ningún `skip-check` de Checkov.
+
+## Ejecución del escaneo completo
+El escaneo levanta la pila **con el WAF como entrada**: las pruebas de humo y `waf-check` pasan por él; ZAP escanea la aplicación **sin** pasar por el WAF (por la red interna de Docker) para evaluar la propia aplicación y no los bloqueos del WAF.
 
 ## Primera ejecución (checklist)
 1. Haz `push`; abre **Actions → CI** y confirma que los 5 jobs pasan.

@@ -3,10 +3,10 @@
 ## 1. Visión general
 
 ```
-Navegador ──HTTPS──► [Cloudflare/WAF*] ──► Nginx (SPA + proxy) ──FastCGI──► PHP-FPM (API) ──► MariaDB
+Navegador ──HTTPS──► [Cloudflare*] ──► WAF (ModSecurity + CRS) ──► Nginx (SPA + proxy) ──FastCGI──► PHP-FPM (API + RASP) ──► MariaDB
                                            red "edge"                        red "edge"+"data"   red "data" (interna)
 ```
-\* Capa de Fase 6.
+\* Opcional, ver `docs/CLOUDFLARE.md`.
 
 - **SPA** (React) servida por Nginx; llama a `/api/*` en el mismo origen (sin CORS).
 - **API JSON** en PHP puro. Autenticación por **sesión con cookie** (`HttpOnly`, `SameSite=Lax`, `Secure` bajo HTTPS) + **token CSRF**.
@@ -130,7 +130,13 @@ Dos workflows en `.github/workflows/`: `ci.yml` (cada push y PR: PHPStan nivel 8
 
 Decisión: las reglas de Semgrep del proyecto convierten las normas de arquitectura (SQL solo con parámetros, entrada solo vía `Request`, cliente de API único en el frontend) en controles automáticos.
 
-## 10. Decisiones (ADR resumidas)
+## 10. Operaciones y monitoreo (Fase 6)
+
+El WAF (ModSecurity + OWASP CRS) es la única entrada pública; la API incorpora un RASP ligero (`RuntimeProtection`) que detecta enumeración de pedidos, ráfagas de errores y fallos CSRF; Wazuh correlaciona los logs de la API y del WAF con 17 reglas locales; `deploy/k8s/` ofrece un despliegue endurecido en Kubernetes; y `RISK_REGISTER.md` documenta 20 riesgos con su matriz de calor antes y después. Detalle y evidencia en [OPERATIONS.md](OPERATIONS.md), [RISK_REGISTER.md](RISK_REGISTER.md) y [CLOUDFLARE.md](CLOUDFLARE.md).
+
+Decisión: la imagen oficial de CRS se usa tal cual (variables de entorno y un único archivo de exclusiones) para no mantener un WAF propio; las exclusiones se mantienen lo más estrechas posible y son la única fuente de verdad para Docker y Kubernetes.
+
+## 11. Decisiones (ADR resumidas)
 
 1. **PHP puro + Composer solo para autoload.** Cumple "sin frameworks"; Composer no añade código de runtime.
 2. **SPA + API JSON** (en vez de HTML en servidor): permite evaluar OWASP API Top 10 (BOLA/IDOR) y encaja con el ciclo de seguridad de APIs.
@@ -138,7 +144,7 @@ Decisión: las reglas de Semgrep del proyecto convierten las normas de arquitect
 4. **Seguro por defecto, vulnerable por rama.** `main` es la versión endurecida. La versión base para el pentest (Fase 7) será una rama/etiqueta `baseline` creada quitando controles de forma deliberada y documentada, solo para el laboratorio local.
 5. **Dinero en centavos (INT)**, snapshot del precio en `order_items` y stock descontado dentro de una transacción.
 
-## 11. Plan por fases
+## 12. Plan por fases
 
 | Fase | Entrega | Estado |
 |---|---|---|
@@ -148,5 +154,5 @@ Decisión: las reglas de Semgrep del proyecto convierten las normas de arquitect
 | **3** | Panel de administración (CRUD de productos, pedidos, usuarios), consulta de auditoría | ✅ |
 | **4** | Frontend completo: catálogo, carrito, checkout, cuenta, admin | ✅ |
 | **5** | CI/CD: PHPStan, Semgrep, gitleaks, Checkov, `composer`/`npm audit`, Trivy, ZAP baseline, Dependabot | ✅ |
-| **6** | Operaciones: WAF/ModSecurity, Cloudflare, SIEM (Wazuh/ELK), manifiestos K8s mínimos | ⏳ |
+| **6** | Operaciones: WAF (ModSecurity + CRS), RASP ligero, SIEM Wazuh, Kubernetes, matriz de calor y tratamiento del riesgo | ✅ |
 | **7** | Rama `baseline` vulnerable, pentest caja negra/gris, casos de abuso, heatmap antes/después | ⏳ |

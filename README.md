@@ -12,7 +12,7 @@ cp .env.example .env        # cambia las contraseñas
 make up                     # construye y levanta web + app + db
 make migrate                # crea el esquema de base de datos
 docker compose run --rm app php bin/seed.php   # carga los 10 productos
-open http://localhost:8080  # panel de estado de la Fase 0
+open http://localhost:8080  # la tienda (entra por el WAF)
 make test                   # pruebas del núcleo (requiere PHP 8.3 local)
 ```
 
@@ -36,6 +36,8 @@ Remove-Item Env:ADMIN_PASSWORD
 Imágenes de producto: `frontend/public/images/<sku en minúsculas>.webp` (800×600). Son ilustraciones propias; para usar fotos reales (p. ej. de Unsplash o Pexels, con licencia libre) basta reemplazar los archivos conservando el nombre. Tras cambiar la semilla: `docker compose run --rm app php bin/seed.php`.
 
 Pruebas del frontend: `cd frontend && npm test`.
+
+Operaciones (Fase 6): `node scripts/waf-check.mjs` (verifica el WAF), `node scripts/wazuh.mjs up` (SIEM), `node scripts/risk-heatmap.mjs` (regenera la matriz de calor). Ver [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 Desarrollo del frontend con recarga en caliente: `cd frontend && npm install && npm run dev` (puerto 5173, proxy a `/api`).
 
