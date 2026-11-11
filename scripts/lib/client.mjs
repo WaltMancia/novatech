@@ -39,6 +39,14 @@ export class Client {
     return r
   }
 
+  /** Registra una cuenta nueva (nunca intenta login primero: no gasta cupo del límite de /auth/login). */
+  async register(email, password = PASSWORD, name = 'Cuenta de prueba') {
+    const r = await this.call('POST', '/api/auth/register', { email, name, password })
+    this.csrf = null // el servidor rota el token al autenticar
+    if (![200, 201].includes(r.status)) throw new Error(`No se pudo registrar ${email}: ${r.status}`)
+    return r
+  }
+
   /** Inicia sesión o, si la cuenta no existe, la registra (solo cuentas de prueba). */
   async authenticate(email) {
     let r = await this.login(email, PASSWORD)
