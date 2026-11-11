@@ -1,0 +1,470 @@
+openapi: 3.0.3
+info:
+  title: NovaTech API
+  description: >
+    API de la tienda NovaTech (proyecto académico, Seguridad en Aplicaciones, UMG).
+    Autenticación por sesión con cookie HttpOnly; los métodos que cambian estado exigen
+    el encabezado X-CSRF-Token obtenido en GET /csrf. Formato de error uniforme:
+    { "error": { "code": "...", "message": "...", "fields"?: {...} } }.
+  version: "1.0.0"
+  license:
+    name: Proyecto académico (uso educativo)
+servers:
+  - url: /api
+    description: Mismo origen que la SPA (producción y desarrollo)
+
+tags:
+  - name: Salud
+  - name: CSRF
+  - name: Autenticación
+  - name: Catálogo
+  - name: Carrito
+  - name: Pedidos
+  - name: Administración - Productos
+  - name: Administración - Pedidos
+  - name: Administración - Usuarios
+  - name: Administración - Auditoría
+
+security:
+  - cookieAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Salud]
+      summary: Liveness del proceso
+      security: []
+      responses:
+        "200": { $ref: "#/components/responses/Health" }
+
+  /health/ready:
+    get:
+      tags: [Salud]
+      summary: Readiness (depende de la base de datos)
+      security: []
+      responses:
+        "200": { description: Listo, content: { application/json: { schema: { $ref: "#/components/schemas/ReadyStatus" } } } }
+        "503": { description: No disponible, content: { application/json: { schema: { $ref: "#/components/schemas/ReadyStatus" } } } }
+
+  /csrf:
+    get:
+      tags: [CSRF]
+      summary: Obtiene (o crea) el token CSRF de la sesión actual
+      security: []
+      responses:
+        "200":
+          description: Token vigente
+          content:
+            application/json:
+              schema: { type: object, properties: { csrfToken: { type: string, minLength: 64, maxLength: 64 } }, required: [csrfToken] }
+
+  /auth/register:
+    post:
+      tags: [Autenticación]
+      summary: Crea una cuenta de cliente e inicia sesión
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, name, password]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+                name: { type: string, minLength: 2, maxLength: 100 }
+                password: { type: string, minLength: 12, maxLength: 128, description: "Se evalúa por longitud (NIST 800-63B), no por composición." }
+      responses:
+        "201": { description: Cuenta creada, content: { application/json: { schema: { type: object, properties: { user: { $ref: "#/components/schemas/User" } } } } } }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "403": { $ref: "#/components/responses/CsrfError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/login:
+    post:
+      tags: [Autenticación]
+      summary: Inicia sesión
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, password]
+              properties:
+                email: { type: string, maxLength: 254 }
+                password: { type: string, maxLength: 128 }
+      responses:
+        "200": { description: Sesión iniciada, content: { application/json: { schema: { type: object, properties: { user: { $ref: "#/components/schemas/User" } } } } } }
+        "401":
+          description: Credenciales inválidas o cuenta bloqueada (misma respuesta para ambos casos, por diseño)
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "403": { $ref: "#/components/responses/CsrfError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/logout:
+    post:
+      tags: [Autenticación]
+      summary: Cierra la sesión
+      responses:
+        "204": { description: Sesión cerrada }
+        "403": { $ref: "#/components/responses/CsrfError" }
+
+  /auth/me:
+    get:
+      tags: [Autenticación]
+      summary: Usuario autenticado
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { user: { $ref: "#/components/schemas/User" } } } } } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /products:
+    get:
+      tags: [Catálogo]
+      summary: Lista productos activos
+      security: []
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { products: { type: array, items: { $ref: "#/components/schemas/Product" } } } } } } }
+
+  /products/{id}:
+    get:
+      tags: [Catálogo]
+      summary: Detalle de un producto activo
+      security: []
+      parameters: [{ $ref: "#/components/parameters/ProductId" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { product: { $ref: "#/components/schemas/Product" } } } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /cart:
+    get:
+      tags: [Carrito]
+      summary: Ver el carrito de la sesión
+      responses:
+        "200": { $ref: "#/components/responses/Cart" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+    delete:
+      tags: [Carrito]
+      summary: Vaciar el carrito
+      responses:
+        "200": { $ref: "#/components/responses/Cart" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/CsrfError" }
+
+  /cart/items:
+    post:
+      tags: [Carrito]
+      summary: Agregar un producto (o sumar cantidad si ya está)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [productId, quantity]
+              properties:
+                productId: { type: integer, minimum: 1 }
+                quantity: { type: integer, minimum: 1, maximum: 10 }
+      responses:
+        "201": { $ref: "#/components/responses/Cart" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/CsrfError" }
+
+  /cart/items/{productId}:
+    put:
+      tags: [Carrito]
+      summary: Fijar la cantidad de una línea
+      parameters: [{ $ref: "#/components/parameters/CartProductId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false, required: [quantity], properties: { quantity: { type: integer, minimum: 1, maximum: 10 } } }
+      responses:
+        "200": { $ref: "#/components/responses/Cart" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/CsrfError" }
+    delete:
+      tags: [Carrito]
+      summary: Quitar una línea del carrito
+      parameters: [{ $ref: "#/components/parameters/CartProductId" }]
+      responses:
+        "200": { $ref: "#/components/responses/Cart" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/CsrfError" }
+
+  /orders:
+    get:
+      tags: [Pedidos]
+      summary: Pedidos del usuario autenticado
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { orders: { type: array, items: { $ref: "#/components/schemas/Order" } } } } } } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+    post:
+      tags: [Pedidos]
+      summary: Confirma el pedido (pago simulado)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [paymentMethod]
+              properties: { paymentMethod: { type: string, enum: [simulated_success, simulated_decline] } }
+      responses:
+        "201": { description: Pedido pagado, content: { application/json: { schema: { type: object, properties: { order: { $ref: "#/components/schemas/Order" } } } } } }
+        "402": { description: Pago rechazado (el carrito se conserva), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "409": { description: Conflicto de stock o producto no disponible, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/CsrfError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /orders/{id}:
+    get:
+      tags: [Pedidos]
+      summary: Detalle de un pedido propio
+      description: Un pedido de otro usuario responde 404 (no 403), para no revelar su existencia.
+      parameters: [{ $ref: "#/components/parameters/OrderId" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { order: { $ref: "#/components/schemas/Order" } } } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /admin/products:
+    get:
+      tags: [Administración - Productos]
+      summary: Lista todos los productos (incluye inactivos)
+      security: [{ cookieAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { products: { type: array, items: { $ref: "#/components/schemas/AdminProduct" } }, meta: { $ref: "#/components/schemas/Meta" } } } } } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      tags: [Administración - Productos]
+      summary: Crea un producto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sku, name, description, priceCents, stock]
+              properties:
+                sku: { type: string, pattern: "^[A-Z0-9-]{3,32}$" }
+                name: { type: string, minLength: 2, maxLength: 120 }
+                description: { type: string, minLength: 1, maxLength: 2000 }
+                priceCents: { type: integer, minimum: 1, maximum: 100000000 }
+                stock: { type: integer, minimum: 0, maximum: 100000 }
+                imagePath: { type: string, nullable: true, pattern: "^/images/[a-z0-9-]{1,64}\\.(png|jpe?g|webp)$" }
+      responses:
+        "201": { description: Creado, content: { application/json: { schema: { type: object, properties: { product: { $ref: "#/components/schemas/AdminProduct" } } } } } }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/products/{id}:
+    get:
+      tags: [Administración - Productos]
+      summary: Detalle (incluye inactivos)
+      parameters: [{ $ref: "#/components/parameters/ProductId" }]
+      responses:
+        "200": { description: OK }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    patch:
+      tags: [Administración - Productos]
+      summary: Actualiza solo los campos enviados
+      parameters: [{ $ref: "#/components/parameters/ProductId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              minProperties: 1
+              properties:
+                name: { type: string, minLength: 2, maxLength: 120 }
+                description: { type: string, minLength: 1, maxLength: 2000 }
+                priceCents: { type: integer, minimum: 1, maximum: 100000000 }
+                stock: { type: integer, minimum: 0, maximum: 100000 }
+                imagePath: { type: string, nullable: true }
+                active: { type: boolean }
+      responses:
+        "200": { description: Actualizado }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    delete:
+      tags: [Administración - Productos]
+      summary: Baja lógica (desactiva)
+      parameters: [{ $ref: "#/components/parameters/ProductId" }]
+      responses:
+        "204": { description: Desactivado }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/orders:
+    get:
+      tags: [Administración - Pedidos]
+      summary: Lista los pedidos de todos los clientes
+      parameters:
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PerPage" }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [pending, paid, failed, cancelled] } }
+      responses:
+        "200": { description: OK }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/orders/{id}:
+    get:
+      tags: [Administración - Pedidos]
+      summary: Detalle de cualquier pedido
+      parameters: [{ $ref: "#/components/parameters/OrderId" }]
+      responses:
+        "200": { description: OK }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/orders/{id}/cancel:
+    post:
+      tags: [Administración - Pedidos]
+      summary: Cancela un pedido pagado y restaura el stock
+      parameters: [{ $ref: "#/components/parameters/OrderId" }]
+      responses:
+        "200": { description: Cancelado }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "El pedido no estaba pagado (transición inválida)" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/users:
+    get:
+      tags: [Administración - Usuarios]
+      summary: Lista de usuarios (sin datos sensibles)
+      parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }]
+      responses:
+        "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/audit-logs:
+    get:
+      tags: [Administración - Auditoría]
+      summary: Eventos de auditoría
+      parameters:
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PerPage" }
+        - { name: action, in: query, required: false, schema: { type: string, pattern: "^[a-z_.]{1,64}$" } }
+        - { name: userId, in: query, required: false, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200": { description: OK }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: nt_sid
+      description: Cookie de sesión (HttpOnly, SameSite=Lax, Secure bajo HTTPS). Los métodos que cambian estado exigen además X-CSRF-Token.
+
+  parameters:
+    ProductId: { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    CartProductId: { name: productId, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    OrderId: { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    Page: { name: page, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100000, default: 1 } }
+    PerPage: { name: perPage, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            fields: { type: object, additionalProperties: { type: array, items: { type: string } } }
+
+    ReadyStatus: { type: object, properties: { status: { type: string, enum: [ready, unavailable] } } }
+
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        email: { type: string, format: email }
+        name: { type: string }
+        role: { type: string, enum: [customer, admin] }
+
+    Product:
+      type: object
+      properties:
+        id: { type: integer }
+        sku: { type: string }
+        name: { type: string }
+        description: { type: string }
+        priceCents: { type: integer }
+        stock: { type: integer }
+        imagePath: { type: string, nullable: true }
+
+    AdminProduct:
+      allOf:
+        - $ref: "#/components/schemas/Product"
+        - type: object
+          properties: { active: { type: boolean } }
+
+    OrderItem:
+      type: object
+      properties:
+        productId: { type: integer }
+        name: { type: string }
+        quantity: { type: integer }
+        unitPriceCents: { type: integer }
+        subtotalCents: { type: integer }
+
+    Order:
+      type: object
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [pending, paid, failed, cancelled] }
+        totalCents: { type: integer }
+        paymentRef: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        items: { type: array, items: { $ref: "#/components/schemas/OrderItem" } }
+
+    Meta:
+      type: object
+      properties: { page: { type: integer }, perPage: { type: integer }, total: { type: integer } }
+
+  responses:
+    Health: { description: OK, content: { application/json: { schema: { type: object, properties: { status: { type: string }, service: { type: string } } } } } }
+    Cart: { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { type: object } }, totalCents: { type: integer } } } } } }
+    NotFound: { description: No encontrado, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Unauthenticated: { description: Sin sesión, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Forbidden: { description: Sin permiso (rol), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    CsrfError: { description: Token CSRF u Origin inválidos, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    RateLimited: { description: Límite de tasa superado, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    ValidationError: { description: Error de validación, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
