@@ -37,6 +37,8 @@ Imágenes de producto: `frontend/public/images/<sku en minúsculas>.webp` (800×
 
 Pruebas del frontend: `cd frontend && npm test`.
 
+Pentest (Fase 7): `node scripts/pentest/run-all.mjs` (7 casos de abuso contra main, debe dar "0 de 7 vulnerables"); el laboratorio con vulnerabilidades deliberadas está en `ops/pentest/` (ver advertencia ahí). Especificación de la API: `docs/api/openapi.yaml`.
+
 Operaciones (Fase 6): `node scripts/waf-check.mjs` (verifica el WAF), `node scripts/wazuh.mjs up` (SIEM), `node scripts/risk-heatmap.mjs` (regenera la matriz de calor). Ver [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 Desarrollo del frontend con recarga en caliente: `cd frontend && npm install && npm run dev` (puerto 5173, proxy a `/api`).

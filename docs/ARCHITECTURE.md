@@ -136,15 +136,19 @@ El WAF (ModSecurity + OWASP CRS) es la única entrada pública; la API incorpora
 
 Decisión: la imagen oficial de CRS se usa tal cual (variables de entorno y un único archivo de exclusiones) para no mantener un WAF propio; las exclusiones se mantienen lo más estrechas posible y son la única fuente de verdad para Docker y Kubernetes.
 
-## 11. Decisiones (ADR resumidas)
+## 11. Pentest (Fase 7)
+
+`docs/PENTEST.md` documenta la metodología, 7 hallazgos con STRIDE/DREAD y la evidencia de explotación real contra un laboratorio con vulnerabilidades deliberadas (`ops/pentest/baseline.patch`, nunca aplicado a `main`). Los mismos 7 scripts (`scripts/pentest/`) dan 0/7 vulnerable contra `main` y 7/7 contra el laboratorio; aplicar el parche hace fallar exactamente 9 de las 79 pruebas existentes, las correspondientes a los controles retirados. `docs/api/openapi.yaml` especifica la superficie de la API para pruebas de caja negra.
+
+## 12. Decisiones (ADR resumidas)
 
 1. **PHP puro + Composer solo para autoload.** Cumple "sin frameworks"; Composer no añade código de runtime.
 2. **SPA + API JSON** (en vez de HTML en servidor): permite evaluar OWASP API Top 10 (BOLA/IDOR) y encaja con el ciclo de seguridad de APIs.
 3. **Sesión con cookie + CSRF** en vez de JWT en `localStorage`: evita exponer tokens a XSS. Si el catedrático pide JWT, se añade como variante documentada.
-4. **Seguro por defecto, vulnerable por rama.** `main` es la versión endurecida. La versión base para el pentest (Fase 7) será una rama/etiqueta `baseline` creada quitando controles de forma deliberada y documentada, solo para el laboratorio local.
+4. **Seguro por defecto, vulnerable por parche.** `main` es siempre la versión endurecida. La versión vulnerable para el pentest (Fase 7) es `ops/pentest/baseline.patch`, aplicado solo en una rama local desechable, nunca fusionado.
 5. **Dinero en centavos (INT)**, snapshot del precio en `order_items` y stock descontado dentro de una transacción.
 
-## 12. Plan por fases
+## 13. Plan por fases
 
 | Fase | Entrega | Estado |
 |---|---|---|
@@ -155,4 +159,4 @@ Decisión: la imagen oficial de CRS se usa tal cual (variables de entorno y un �
 | **4** | Frontend completo: catálogo, carrito, checkout, cuenta, admin | ✅ |
 | **5** | CI/CD: PHPStan, Semgrep, gitleaks, Checkov, `composer`/`npm audit`, Trivy, ZAP baseline, Dependabot | ✅ |
 | **6** | Operaciones: WAF (ModSecurity + CRS), RASP ligero, SIEM Wazuh, Kubernetes, matriz de calor y tratamiento del riesgo | ✅ |
-| **7** | Rama `baseline` vulnerable, pentest caja negra/gris, casos de abuso, heatmap antes/después | ⏳ |
+| **7** | Pentest caja negra/gris, 7 casos de abuso, laboratorio con vulnerabilidades deliberadas, OpenAPI, DREAD | ✅ |
