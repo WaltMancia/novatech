@@ -186,6 +186,14 @@ jobs:
       - name: Reglas del SIEM (Wazuh) contra logs reales
         run: python3 scripts/check_wazuh_rules.py
 
+      - name: Validar la especificación OpenAPI
+        run: |
+          pip install --no-input openapi-spec-validator==0.7.*
+          openapi-spec-validator docs/api/openapi.yaml
+
+      - name: El parche del laboratorio de pentest debe aplicar limpio (sin tocar main)
+        run: git apply --check ops/pentest/baseline.patch
+
       - name: Instalar actionlint (checksum verificado)
         run: |
           curl -sSfL -o actionlint.tgz "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz"
