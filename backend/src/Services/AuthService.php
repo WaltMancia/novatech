@@ -24,10 +24,10 @@ final class AuthService
     ) {
     }
 
-    public function register(string $email, string $name, string $password, string $ip): User
+    public function register(string $email, string $name, string $password, string $ip, string $role = 'customer'): User
     {
         try {
-            $user = $this->users->create($this->normalize($email), $name, $this->hasher->hash($password), Role::Customer);
+            $user = $this->users->create($this->normalize($email), $name, $this->hasher->hash($password), Role::from($role));
         } catch (DuplicateEmailException) {
             throw new ValidationException(['email' => ['Este correo no está disponible.']]);
         }
@@ -41,20 +41,18 @@ final class AuthService
     {
         $user = $this->users->findByEmail($this->normalize($email));
 
-        // Siempre se ejecuta exactamente un hash, exista o no el usuario, para no filtrar su existencia por tiempo.
-        if ($user === null || $user->locked) {
+        // [LAB-BASELINE] Sin chequeo de bloqueo y sin registrar intentos fallidos: fuerza bruta sin límite.
+        if ($user === null) {
             $this->hasher->burn($password);
-            $this->audit->record('auth.login_failed', $user?->id, $ip, ['reason' => $user === null ? 'unknown_user' : 'locked']);
+            $this->audit->record('auth.login_failed', null, $ip, ['reason' => 'unknown_user']);
             throw new InvalidCredentialsException();
         }
 
         if (!$this->hasher->verify($password, $user->passwordHash)) {
-            $this->users->recordFailedLogin($user->id, self::MAX_ATTEMPTS, self::LOCK_SECONDS);
             $this->audit->record('auth.login_failed', $user->id, $ip, ['reason' => 'bad_password']);
             throw new InvalidCredentialsException();
         }
 
-        $this->users->resetFailedLogins($user->id);
         if ($this->hasher->needsRehash($user->passwordHash)) {
             $this->users->updatePasswordHash($user->id, $this->hasher->hash($password));
         }

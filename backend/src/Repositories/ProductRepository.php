@@ -12,6 +12,9 @@ interface ProductRepository
 
     public function findActive(int $id): ?Product;
 
+    /** [LAB-BASELINE] Endpoint de búsqueda añadido sin pasar por el patrón del repositorio. */
+    public function searchUnsafe(string $term): array;
+
     /**
      * @param list<int> $ids
      * @return array<int, Product> indexado por id

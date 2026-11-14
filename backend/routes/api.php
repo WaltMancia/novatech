@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 use NovaTech\Core\Router;
-use NovaTech\Http\Controllers\{AuthController, CartController, CsrfController, HealthController, OrderController, ProductController};
+use NovaTech\Http\Controllers\{AuthController, CartController, CsrfController, DebugController, HealthController, OrderController, ProductController};
 use NovaTech\Http\Controllers\Admin\{AuditAdminController, OrderAdminController, ProductAdminController, UserAdminController};
 use NovaTech\Http\Middleware\Authenticate;
 
@@ -11,15 +11,17 @@ return static function (Router $router): void {
         $r->get('/health', [HealthController::class, 'live']);
         $r->get('/health/ready', [HealthController::class, 'ready']);
         $r->get('/csrf', [CsrfController::class, 'show']);
+        $r->get('/debug/echo', [DebugController::class, 'echo']); // [LAB-BASELINE] endpoint de depuración olvidado
 
         $r->group('/auth', [], static function (Router $a): void {
             $a->post('/register', [AuthController::class, 'register'], ['throttle:5,600']);
-            $a->post('/login', [AuthController::class, 'login'], ['throttle:10,60']);
+            $a->post('/login', [AuthController::class, 'login']); // [LAB-BASELINE] sin límite de tasa
             $a->post('/logout', [AuthController::class, 'logout'], [Authenticate::class]);
             $a->get('/me', [AuthController::class, 'me'], [Authenticate::class]);
         });
 
         $r->get('/products', [ProductController::class, 'index']);
+        $r->get('/products/search', [ProductController::class, 'search']); // [LAB-BASELINE] ver docs/PENTEST.md
         $r->get('/products/{id:\d{1,9}}', [ProductController::class, 'show']);
 
         $r->group('/cart', [Authenticate::class], static function (Router $c): void {

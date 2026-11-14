@@ -19,6 +19,13 @@ final class ProductController
         return Response::json(['products' => array_map(static fn (Product $p) => $p->toPublic(), $this->products->listActive())]);
     }
 
+    /** [LAB-BASELINE] Ruta de búsqueda con SQL concatenado (ver ProductRepository::searchUnsafe). */
+    public function search(Request $request): Response
+    {
+        $term = $request->query('q', '');
+        return Response::json(['products' => array_map(static fn (Product $p) => $p->toPublic(), $this->products->searchUnsafe($term))]);
+    }
+
     public function show(Request $request): Response
     {
         $product = $this->products->findActive((int) $request->param('id'))

@@ -50,14 +50,12 @@ return static function (array $overrides = [], ?callable $extraRoutes = null): A
         $extraRoutes($router);
     }
 
-    // Orden importa: contexto -> cabeceras -> protección en ejecución -> manejo de errores -> límite global -> CSRF -> router.
+    // [LAB-BASELINE] CSRF, cabeceras de seguridad y límite de tasa global deshabilitados.
+    // "Para simplificar la integración con el frontend durante la demo" -- excusa típica de una regresión real.
     $global = [
         RequestContext::class,
-        SecurityHeaders::class,
         RuntimeProtection::class,
         HandleErrors::class,
-        'throttle:120,60',
-        VerifyCsrf::class,
     ];
 
     $aliases = [

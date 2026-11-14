@@ -153,6 +153,12 @@ final class InMemoryProducts implements ProductRepository
         return $this->items[$id] ?? null;
     }
 
+    /** [LAB-BASELINE] Implementación mínima para que la suite siga ejecutándose; no reproduce la inyección SQL. */
+    public function searchUnsafe(string $term): array
+    {
+        return array_values(array_filter($this->items, static fn (Product $p) => $p->active && str_contains($p->name, $term)));
+    }
+
     public function paginate(int $limit, int $offset): array
     {
         return ['items' => array_slice(array_values($this->items), $offset, $limit), 'total' => count($this->items)];
