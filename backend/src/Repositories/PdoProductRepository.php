@@ -21,15 +21,6 @@ final class PdoProductRepository implements ProductRepository
         return array_map($this->hydrate(...), $this->db->fetchAll(self::SELECT . ' WHERE is_active = 1 ORDER BY id'));
     }
 
-    public function searchUnsafe(string $term): array
-    {
-        // [LAB-BASELINE] Concatenación directa de entrada del usuario en SQL: inyección SQL (CWE-89).
-        // "Es solo para una demo rápida de búsqueda" -- la regresión real casi siempre entra así.
-        $sql = "SELECT id, sku, name, description, price_cents, stock, image_path, is_active "
-             . "FROM products WHERE is_active = 1 AND name LIKE '%{$term}%'";
-        return array_map($this->hydrate(...), $this->db->fetchAll($sql));
-    }
-
     public function findActive(int $id): ?Product
     {
         $row = $this->db->fetchOne(self::SELECT . ' WHERE is_active = 1 AND id = ?', [$id]);

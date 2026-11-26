@@ -47,8 +47,7 @@ final class PdoOrderRepository implements OrderRepository
 
     public function findForUser(int $orderId, int $userId): ?Order
     {
-        // [LAB-BASELINE] No filtra por propietario: cualquier usuario autenticado ve cualquier pedido (BOLA/IDOR).
-        $row = $this->db->fetchOne(self::SELECT . ' WHERE id = ?', [$orderId]);
+        $row = $this->db->fetchOne(self::SELECT . ' WHERE id = ? AND user_id = ?', [$orderId, $userId]);
         return $row === null ? null : $this->withItems([$row])[0];
     }
 

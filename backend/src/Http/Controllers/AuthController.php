@@ -15,15 +15,13 @@ final class AuthController
 
     public function register(Request $request): Response
     {
-        // [LAB-BASELINE] Acepta un campo "role" del cliente: asignación masiva -> escalamiento de privilegios.
         $data = Validator::validate($request->json(), [
             'email' => 'required|trim|email',
             'name' => 'required|trim|string|between:2,100',
             'password' => 'required|password',
-            'role' => 'nullable|in:customer,admin',
-        ]);
+        ], rejectUnknown: true);
 
-        $user = $this->auth->register($data['email'], $data['name'], $data['password'], $request->ip(), $data['role'] ?? 'customer');
+        $user = $this->auth->register($data['email'], $data['name'], $data['password'], $request->ip());
         return Response::json(['user' => $user->toPublic()], 201);
     }
 
