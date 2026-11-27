@@ -3,6 +3,7 @@ vendor/
 node_modules/
 frontend/dist/
 *.log
+!ops/wazuh/samples.log
 .DS_Store
 .idea/
 .vscode/
